@@ -15,6 +15,7 @@
 1. Tokens instead of Cookies --> Stateless
     1.1 Server secrets reside in Zookeeper
     1.2 Or they all request authentication from applogic or auth service
+2. Generate dummy database entries with mixer
 
 //TODO: ---- Database ----
 
