@@ -1,0 +1,67 @@
+
+
+
+//FIXME: **** Services ****
+1. AppLogic
+2. Auth
+    2.1 Path: /auth/
+3. Storage
+4. ZooKeeper
+5. Database
+
+
+//TODO: ---- Unsorted ----
+
+1. Tokens instead of Cookies --> Stateless
+    1.1 Server secrets reside in Zookeeper
+    1.2 Or they all request authentication from applogic or auth service
+
+//TODO: ---- Database ----
+
+1. Create Postgress DB
+2. SQLAlchemy - flask_sqlalchemy
+3. Flask integration
+    3.1 GET
+        {
+            /auth/register
+            /auth/user
+            /auth/user/<username>
+
+            /user χωρις auth server
+            @route db.com/user
+            get(user) { SQL ... return json}
+            get(
+        }
+    3.2 POST
+        {
+            create()
+            {
+                id : "UUID ? "
+                username : "babis"
+                password : "stokas"
+                galleries : "url? name? id?"
+                friends : "name1 , name2 , name3"
+            }
+        }
+
+
+//TODO: ----  App Logic ----
+
+1.
+
+//TODO:  ---- Storage ----
+
+1. how to handle file uploads!! example
+2. Also downloads q.q (HTTP)
+
+//TODO: ---- Front End // Templates/Views ----
+
+0.1 I'll take frontend frameworks for 500. What is Jinja? What is React?
+
+1. Index
+2. Login
+3. Profile (Galleries)
+
+
+flask db init
+flask db migrate -m "users table"

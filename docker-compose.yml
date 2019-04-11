@@ -5,3 +5,10 @@ services:
     build: .
     ports:
     - "5000:5000"
+
+  # https://hub.docker.com/_/postgres
+  db:
+    image: postgres:11
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: 1234
