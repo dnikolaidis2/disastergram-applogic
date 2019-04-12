@@ -48,7 +48,46 @@
 
 //TODO: ----  App Logic ----
 
-1.
+1. Functions:
+    1.1
+
+
+// ------ APP LIFECYCLE
+
+    1. INDEX    disastergram.com/
+          or    disastergram.com/index (port 80)
+
+        - Index is here. First public page
+        - 1.1 GET disastergram.com
+        - 1.2 --> APP WebServer @app.route('/')
+            1.2.1 checks if already logged in => do we have token? cookie check if valid..
+        - 1.3 --> RETURNS .html
+
+
+    2. AUTH - summon @vsam's holy spirit
+
+        disastergram.com/auth/register
+        disastergram.com/api/auth/register
+
+        reverse proxy - deployment
+
+        @vsam
+            Web σελίδα στον auth server???
+            Αν ειναι ξεχωριστά θελουν και ξεχωριστά db?
+            Αν η ιδέα ειναι να είναι αυτόνομο πρεπεί να εισαι μεσα στο zookeeper το auth?
+            Πρεπει να ρωτάμε καθε φορά που κανουμε verify τον χρήστη?
+            Maybe auth sends the token to Zookeper?
+
+    3. /user - "profile" assume logged in user
+        - 3.1 GET disastergram.com/api/user/<username>
+        - 3.2 --> APP WebServer responds @app.route('/user/<username>')
+
+
+        => gets users info, friends, galleries
+    4. /gal
+
+auth -> zookeeper -> deployment -> documentation
+
 
 //TODO:  ---- Storage ----
 
