@@ -8,10 +8,22 @@ followers = db.Table('followers',
     db.Column('followed_id', db.Integer, db.ForeignKey('user.id'))
 )
 
+
+class Gallery(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    galleryname = db.Column(db.String, unique = False, nullable= False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+
+
+    def __repr__(self):
+        return '<Gallery %r>' % self.galleryname
+
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.Text, unique=True, nullable=False)
+    galleries = db.relationship('Gallery', backref='author', lazy = 'dynamic')
     followed = db.relationship(
         'User', secondary=followers,
         primaryjoin=(followers.c.follower_id == id),
