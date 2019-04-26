@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_marshmallow import Marshmallow
 from instance.config import Config
+
 #from kazoo import client as kz_client
 
 db = SQLAlchemy()

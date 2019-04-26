@@ -5,19 +5,17 @@ services:
     build: .
     ports:
     - "5000:5000"
+    networks:
+      - disastergram-auth_auth-net
 
-  auth:
-    build: .
-    ports:
-    - "5000:5000"
-    depends_on:
-      - db
   # https://hub.docker.com/_/postgres
   db:
     image: postgres:11
     restart: always
     environment:
       POSTGRES_PASSWORD: 1234
+    networks:
+      - disastergram-auth_auth-net
 
   # https://hub.docker.com/_/zookeeper/
   zoo1:
@@ -38,3 +36,8 @@ services:
     environment:
       ZOO_MY_ID: 2
       ZOO_SERVERS: server.1=zoo1:2888:3888 server.2=0.0.0.0:2888:3888
+
+
+networks:
+  disastergram-auth_auth-net:
+    external: true

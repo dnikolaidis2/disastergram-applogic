@@ -8,3 +8,6 @@ flask-marshmallow==0.10.0
 marshmallow-sqlalchemy==0.16.2
 flask-bcrypt==0.7.1
 kazoo==2.6.0
+requests==2.21.0
+cryptography==2.6.1
+pyjwt==1.7.1
