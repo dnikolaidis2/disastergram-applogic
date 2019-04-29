@@ -170,8 +170,14 @@ def add_friend(token_payload, username):
 @require_auth()
 def get_friends(token_payload):
 
-    logged_user = generate_user(token_payload)
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
+
     users = logged_user.followed.all()
+
     if users is None:
         # TODO : Error Handling.
         return jsonify({'message': 'No friends found.'})
@@ -182,36 +188,46 @@ def get_friends(token_payload):
         user_data = {}
         user_data['id'] = user.id
         user_data['username'] = user.username
-        user_data['password'] = user.password
         output.append(user_data)
     return jsonify({'Followed users': output})
 
 
 @bp.route('/user/friends/<username>', methods=['DELETE'])
 @require_auth()
-def delete_friend(username):
-    current_user = User.query.filter_by(username='stavros').first()  # Temporary way to declare current user...
-    user = User.query.filter_by(username=username).first()
-    if user is None:
-        # TODO : Error Handling.
-        return jsonify({'message': 'No friends found.'})
-    if not current_user.is_following(user):
-        return jsonify({'message': 'Cant delete friend that doesnt exist.'})
+def delete_friend(token_payload, username):
 
-    current_user.unfollow(user)
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
+
+    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
+        return jsonify({'message': 'No user with name '+str(username)+' found.'})
+
+    user = User.query.filter_by(username=username).first()
+
+    if not logged_user.is_following(user):
+        return jsonify({'message': 'User already not followed.'})
+
+    logged_user.unfollow(user)
     db.session.commit()
-    return jsonify({'message': 'User {} deleted from your Friends.'})
+
+    return jsonify({'message': 'User '+str(username)+' deleted from your Friends.'})
 
 
 # Creates an empty gallery for the user.
 @bp.route('/user/gallery', methods=['POST'])
 @require_auth()
 def create_gallery(token_payload):
+
     generate_user(token_payload)
     current_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
     new_gallery = Gallery(galleryname=request.json['name'], author=current_user)
     db.session.add(new_gallery)
     db.session.commit()
+
     return jsonify({'message': 'Gallery Created.'})
 
 
