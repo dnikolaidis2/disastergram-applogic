@@ -89,7 +89,7 @@ def generate_user(payload):
 
 
 def require_auth(pub_key="PUBLIC_KEY"):
-    #if not callable(pub_key):
+
     pub_key = auth_pubkey
 
     def decorator(f):
@@ -103,16 +103,22 @@ def require_auth(pub_key="PUBLIC_KEY"):
     return decorator
 
 
-def add_user(auth_id, username):
+# Adds users to App-Logic Database if they don't already exist.
+def sync_user(username):
 
-    if User.query.filter(User.auth_id == auth_id).count() != 0:
-        return
+    if User.query.filter(User.username == username).count() != 0:
+        return True
 
-    new_user = User(username= username, auth_id = auth_id)
+    user_data = requests.get('http://disastergram.nikolaidis.tech/auth/user/' + str(username)).json()
+
+    if user_data is None:
+        return False
+
+    new_user = User(username=user_data['username'], auth_id=user_data['id'])
     db.session.add(new_user)
     db.session.commit()
 
-    return
+    return True
 
 # TESTING TESTING TESTING TESTING
 @bp.route('/test', methods=['GET'])
@@ -121,10 +127,7 @@ def test_pubkey(token_payload):
     generate_user(token_payload)
     return jsonify({'Message': 'User added?'})
 
-
-
-
-
+# Used for Testing Purposes.
 @bp.route('/user', methods=['GET'])
 def get_all_users():
     users = User.query.all()
@@ -139,42 +142,36 @@ def get_all_users():
         output.append(user_data)
     return jsonify({'users': output})
 
-
-
-
+# Can Add Friends. Also syncing FLAWLESSLY with Auth - Database!
 @bp.route('/user/friends/<username>', methods=['POST'])
 @require_auth()
 def add_friend(token_payload, username):
 
-    current_user = generate_user(token_payload) #If user is not in the database, add him.
-    if current_user is None:
-        abort(403, 'User could not be found.')
+    generate_user(token_payload)  # If user is not in the database, add him.
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
-    #current_user = User.query.filter_by(username='stavros').first() #Temporary way to declare current user...
-    user_data = requests.get('http://disastergram.nikolaidis.tech:5000/auth/user/'+str(username)+'?token='+str(request.args.get('token'))).json()
-    if user_data is None:
-        return jsonify({'message': 'Could not Follow, user does not exist.'})
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
 
-    add_user(user_data['id'], user_data['username'])
+    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
+        return jsonify({'message': 'No user with name '+str(username)+' found.'})
 
     user = User.query.filter_by(username=username).first()
-    if user is None:
-        #TODO : Error Handling.
-        return jsonify({'message': 'No user found.'})
 
-    if user.username == current_user.username:
+    if user.username == logged_user.username:
         return jsonify({'message': 'Cannot Follow yourself.'})
 
-    current_user.follow(user)
+    logged_user.follow(user)
     db.session.commit()
-    return jsonify({'message': 'User {} added to your Friends.'})
+    return jsonify({'message': 'User '+str(username)+' added to your Friends.'})
 
 
 @bp.route('/user/friends', methods=['GET'])
 @require_auth()
 def get_friends(token_payload):
-    current_user = generate_user(token_payload)
-    users = current_user.followed.all()
+
+    logged_user = generate_user(token_payload)
+    users = logged_user.followed.all()
     if users is None:
         # TODO : Error Handling.
         return jsonify({'message': 'No friends found.'})
@@ -217,16 +214,74 @@ def create_gallery(token_payload):
     db.session.commit()
     return jsonify({'message': 'Gallery Created.'})
 
-# Deletes gallery from the user.
-@bp.route('/user/gallery', methods=['DELETE'])
+
+# GET a list of the user's galleries OR user's friends GALLERIES.
+@bp.route('/user/gallery/<username>', methods=['GET'])
 @require_auth()
-def create_gallery(token_payload):
+def list_galleries(token_payload, username):
+
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
+        return jsonify({'message': 'No user with name '+str(username)+' found.'})
+
+    target_user = User.query.filter_by(username=username).first()
+
+    if logged_user.username != username:
+
+        if target_user is None:
+            return jsonify({'message': 'User '+str(username)+' does not Exist'})
+
+        if not target_user.is_following(logged_user):
+            return jsonify({'message': 'Cannot view '+str(username)+' Gallery. User is not Following you.'})
+
+    galleries = Gallery.query.filter_by(user_id=target_user.id)
+
+    output = []
+
+    for gallery in galleries:
+        gallery_data = {}
+        gallery_data['galleryname'] = gallery.galleryname
+        output.append(gallery_data)
+
+    return jsonify({'Galleries': output})
+
+
+# Deletes gallery from the user.
+@bp.route('/user/gallery/<galleryname>', methods=['DELETE'])
+@require_auth()
+def delete_gallery(token_payload,galleryname):
+
     generate_user(token_payload)
     current_user = User.query.filter_by(auth_id=token_payload['sub']).first()
-    new_gallery = Gallery(galleryname=request.json['name'], author=current_user)
-    db.session.delete(new_gallery)
+    requested_gallery = Gallery.query.filter_by(galleryname=galleryname, author=current_user).first()
+    db.session.delete(requested_gallery)
     db.session.commit()
+
     return jsonify({'message': 'Gallery Deleted.'})
+
+
+
+# Get Gallery images based on name from the user.
+#TODO : Build legit URL Generation and Storing with Storage Server.
+@bp.route('/user/gallery/images/<galleryname>', methods=['GET'])
+@require_auth()
+def view_gallery(token_payload, galleryname):
+    generate_user(token_payload)
+    current_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+    requested_gallery = Gallery.query.filter_by(galleryname=galleryname, author=current_user).first()
+
+    gallery_images = Image.query.filter_by(author=requested_gallery).all()
+
+    output = []
+    gallery_data = {}
+
+    for image in gallery_images:
+        gallery_data['image_url'] = image.imageurl
+        output.append(gallery_data)
+
+    return jsonify({'Gallery_images': output})
 
 
 
