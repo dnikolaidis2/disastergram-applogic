@@ -143,12 +143,14 @@ def get_all_users():
     return jsonify({'users': output})
 
 # Can Add Friends. Also syncing FLAWLESSLY with Auth - Database!
-@bp.route('/user/friends/<username>', methods=['POST'])
+@bp.route('/user/follow', methods=['POST'])
 @require_auth()
-def add_friend(token_payload, username):
+def add_friend(token_payload):
 
     generate_user(token_payload)  # If user is not in the database, add him.
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    username = request.json.get('username')
 
     if logged_user is None:
         abort(403, 'Logged in user does not exist.')
@@ -192,12 +194,14 @@ def get_friends(token_payload):
     return jsonify({'Followed users': output})
 
 
-@bp.route('/user/friends/<username>', methods=['DELETE'])
+@bp.route('/user/unfollow', methods=['DELETE'])
 @require_auth()
-def delete_friend(token_payload, username):
+def delete_friend(token_payload):
 
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    username = request.json.get('username')
 
     if logged_user is None:
         abort(403, 'Logged in user does not exist.')
@@ -222,9 +226,11 @@ def delete_friend(token_payload, username):
 def create_gallery(token_payload):
 
     generate_user(token_payload)
-    current_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
 
-    new_gallery = Gallery(galleryname=request.json['name'], author=current_user)
+    new_gallery = Gallery(galleryname=request.json['name'], author=logged_user)
     db.session.add(new_gallery)
     db.session.commit()
 
@@ -232,7 +238,7 @@ def create_gallery(token_payload):
 
 
 # GET a list of the user's galleries OR user's friends GALLERIES.
-@bp.route('/user/gallery/<username>', methods=['GET'])
+@bp.route('/user/<username>/galleries', methods=['GET'])
 @require_auth()
 def list_galleries(token_payload, username):
 
@@ -265,30 +271,40 @@ def list_galleries(token_payload, username):
 
 
 # Deletes gallery from the user.
-@bp.route('/user/gallery/<galleryname>', methods=['DELETE'])
+@bp.route('/user/gallery', methods=['DELETE'])
 @require_auth()
-def delete_gallery(token_payload,galleryname):
+def delete_gallery(token_payload):
 
     generate_user(token_payload)
-    current_user = User.query.filter_by(auth_id=token_payload['sub']).first()
-    requested_gallery = Gallery.query.filter_by(galleryname=galleryname, author=current_user).first()
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    galleryname = request.json.get('gallery_name')
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
+
+    requested_gallery = Gallery.query.filter_by(galleryname=galleryname, author=logged_user).first()
     db.session.delete(requested_gallery)
     db.session.commit()
 
     return jsonify({'message': 'Gallery Deleted.'})
 
 
-
-# Get Gallery images based on name from the user.
-#TODO : Build legit URL Generation and Storing with Storage Server.
-@bp.route('/user/gallery/images/<galleryname>', methods=['GET'])
+# View the Images of a Gallery.
+# TODO : Build legit URL Generation and Storing with Storage Server.
+@bp.route('/user/<username>/gallery/<galleryname>', methods=['GET'])
 @require_auth()
-def view_gallery(token_payload, galleryname):
+def view_gallery(token_payload, username, galleryname):
     generate_user(token_payload)
-    current_user = User.query.filter_by(auth_id=token_payload['sub']).first()
-    requested_gallery = Gallery.query.filter_by(galleryname=galleryname, author=current_user).first()
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
-    gallery_images = Image.query.filter_by(author=requested_gallery).all()
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
+
+    requested_gallery = Gallery.query.filter_by(galleryname=galleryname).first()
+
+    #if requested_gallery.user_id != logged_user.user_id:
+
+    gallery_images = Image.query.filter_by(gallery_id=requested_gallery.id).all()
 
     output = []
     gallery_data = {}
