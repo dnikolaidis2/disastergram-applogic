@@ -58,19 +58,34 @@ def check_token(pub_key):
     return token_payload
 
 #This function will be used to check incoming users and add them to the applogic database if they don't already exist.
-def generate_user():
-    pub_key = auth_pubkey
-    payload = check_token(pub_key)
-    token = request.args.get('token')
-    user_data= requests.get('http://disastergram.nikolaidis.tech:5000/auth/user/'+str(payload['sub'])+str(token)).json()
-    if User.query.filter(User.auth_id == user_data['id']).count() != 0:
-        return
+def generate_user(payload):
+    token = ''
+    if request.method == 'GET':
+        # check if token was sent with request
+        if request.args == {}:
+            abort(400, 'Token is not part of request')
 
+        # check if token is not empty
+        token = request.args.get('token')
+        if token is None:
+            abort(400, 'Token field is empty')
+    else:
+        # check json data
+        if request.json.get('token') is None:
+            abort(400, 'Token is not part of request form')
+
+        token = request.json.get('token')
+
+    user_data = requests.get('http://disastergram.nikolaidis.tech/auth/user/'+str(payload['sub'])+'?token='+str(token)).json()
+    if User.query.filter(User.auth_id == user_data['id']).count() != 0:
+        #return User.query.filter_by(auth_id=user_data['id']).first()
+        return
     dup_user = User(username=user_data['username'], auth_id=user_data['id'])
     db.session.add(dup_user)
     db.session.commit()
 
-    return jsonify({'message': 'User {} added .'})
+    return jsonify({'message': 'user created'})
+    #return jsonify({'id': user_data['id']})
 
 
 def require_auth(pub_key="PUBLIC_KEY"):
@@ -82,21 +97,31 @@ def require_auth(pub_key="PUBLIC_KEY"):
         def wrapped(*args, **kwargs):
             payload = check_token(pub_key)
             kwargs['token_payload'] = payload
-            #generate_user
             return f(*args, **kwargs)
 
         return wrapped
     return decorator
 
 
+def add_user(auth_id, username):
 
+    if User.query.filter(User.auth_id == auth_id).count() != 0:
+        return
 
+    new_user = User(username= username, auth_id = auth_id)
+    db.session.add(new_user)
+    db.session.commit()
+
+    return
 
 # TESTING TESTING TESTING TESTING
 @bp.route('/test', methods=['GET'])
 @require_auth()
 def test_pubkey(token_payload):
-    return requests.get('http://disastergram.nikolaidis.tech:5000/auth/user/'+str(token_payload['sub'])+'?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJhdXRoX3NlcnZlciIsInN1YiI6MiwiZXhwIjoxNTU2MzEwMTkwLCJuYmYiOjE1NTYzMDk1OTB9.DvJ55LZtT4OXxBl_EGrIiOej028rpbhkHjdc4mnKrm-TNepAhEccpcWmX7qsI5JBs_xqWpWWJAIZ6dffpQ5F_I3jGGf4wm0Lg0iEXsL-ATIbiVXBfx9HdCu5EgOumurJUJZ0gCRNTjfnKnz6lsm6gMkEsSWXdXqh6iihoqwyMt4hD8Mj2EWN7JW-8aYJCXgNVQPAFhKgdrYixVd3EJfIfEIaxQmvfgDdZxGlWhnaHSD1CAsSRORrfwIaqSKeCTQ7jMEyy8zmHLlQuNX0Vwc6-5-7NZW9r-Jh2GwZIAz82tjoR5r84wJ-YIu-mkQs4t3XRA4U3t2z-TbSaJkbPAN3nvxZd1JNoaApIdr5W3a0PndH0GOphLGPcc-54XW_yC1slFUBD9Pp2ATv9r49CkiJQhG2pk6O2OXpma8XFWiSFiP-M0SiaK0e3LfQsU50ZaxYSaKOoeg6PRMALPSgiJj04tgXYHVxoV5C4lVhTq0ApxFlOD9_h19H8OVvujSCnOMInAeJ_s7sgml6CMhEcaPrO3bidKslE7EeUrdWT4iTSHHrSTm1JVp_dAmOX5N7nw6stkuUQqujM---zVa3y3K-Ml4DPxTOW32j9FgOPV93VHNFizmWuxRbIvI37xpEyaql9JrPCGeWOlr9nYwyS3IAQS8XSvDnIxVKXUdLOR8vVCc').content
+    generate_user(token_payload)
+    return jsonify({'Message': 'User added?'})
+
+
 
 
 
@@ -109,38 +134,36 @@ def get_all_users():
     for user in users:
         user_data = {}
         user_data['id'] = user.id
+        user_data['auth_id'] = user.auth_id
         user_data['username'] = user.username
-        user_data['password'] = user.password
         output.append(user_data)
     return jsonify({'users': output})
 
 
 
 
-@bp.route('/user/<user_id>', methods=['GET'])
-def get_user():
-    return ''
-
-@bp.route('/user', methods=['POST'])
-def create_user():
-    data = request.get_json()
-    new_user = User(username=request.json['username'], password=request.json['password'])
-    db.session.add(new_user)
-    db.session.commit()
-
-    return jsonify({'message': 'New user created!'})
-
-
 @bp.route('/user/friends/<username>', methods=['POST'])
 @require_auth()
-def add_friend(username):
-    current_user = User.query.filter_by(username='stavros').first() #Temporary way to declare current user...
+def add_friend(token_payload, username):
+
+    current_user = generate_user(token_payload) #If user is not in the database, add him.
+    if current_user is None:
+        abort(403, 'User could not be found.')
+
+    #current_user = User.query.filter_by(username='stavros').first() #Temporary way to declare current user...
+    user_data = requests.get('http://disastergram.nikolaidis.tech:5000/auth/user/'+str(username)+'?token='+str(request.args.get('token'))).json()
+    if user_data is None:
+        return jsonify({'message': 'Could not Follow, user does not exist.'})
+
+    add_user(user_data['id'], user_data['username'])
+
     user = User.query.filter_by(username=username).first()
     if user is None:
         #TODO : Error Handling.
         return jsonify({'message': 'No user found.'})
 
-    #TODO : Else if to check if user tries to add himself.
+    if user.username == current_user.username:
+        return jsonify({'message': 'Cannot Follow yourself.'})
 
     current_user.follow(user)
     db.session.commit()
@@ -148,8 +171,9 @@ def add_friend(username):
 
 
 @bp.route('/user/friends', methods=['GET'])
-def get_friends():
-    current_user = User.query.filter_by(username='stavros').first()  # Temporary way to declare current user...
+@require_auth()
+def get_friends(token_payload):
+    current_user = generate_user(token_payload)
     users = current_user.followed.all()
     if users is None:
         # TODO : Error Handling.
@@ -167,6 +191,7 @@ def get_friends():
 
 
 @bp.route('/user/friends/<username>', methods=['DELETE'])
+@require_auth()
 def delete_friend(username):
     current_user = User.query.filter_by(username='stavros').first()  # Temporary way to declare current user...
     user = User.query.filter_by(username=username).first()
@@ -181,16 +206,33 @@ def delete_friend(username):
     return jsonify({'message': 'User {} deleted from your Friends.'})
 
 
+# Creates an empty gallery for the user.
 @bp.route('/user/gallery', methods=['POST'])
-def create_gallery():
-    current_user = User.query.filter_by(username='stavros').first()  # Temporary way to declare current user..
+@require_auth()
+def create_gallery(token_payload):
+    generate_user(token_payload)
+    current_user = User.query.filter_by(auth_id=token_payload['sub']).first()
     new_gallery = Gallery(galleryname=request.json['name'], author=current_user)
     db.session.add(new_gallery)
     db.session.commit()
     return jsonify({'message': 'Gallery Created.'})
 
+# Deletes gallery from the user.
+@bp.route('/user/gallery', methods=['DELETE'])
+@require_auth()
+def create_gallery(token_payload):
+    generate_user(token_payload)
+    current_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+    new_gallery = Gallery(galleryname=request.json['name'], author=current_user)
+    db.session.delete(new_gallery)
+    db.session.commit()
+    return jsonify({'message': 'Gallery Deleted.'})
+
+
+
 
 @bp.route('/user/gallery/upload', methods=['POST'])
+@require_auth()
 def upload_image():
 
     #https://www.youtube.com/watch?time_continue=381&v=TLgVEBuQURA

@@ -14,12 +14,17 @@ class Comment(db.Model):
     image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
+    def __repr__(self):
+        return '<Comment %r>' % self.id
+
 class Image(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     gallery_id = db.Column(db.Integer, db.ForeignKey('gallery.id'))
     imageurl = db.Column(db.String(100), unique = True, nullable = False)
     comments = db.relationship('Comment', backref='author', lazy = 'dynamic')
 
+    def __repr__(self):
+        return '<Image %r>' % self.imageurl
 
 class Gallery(db.Model):
     id = db.Column(db.Integer, primary_key=True)
