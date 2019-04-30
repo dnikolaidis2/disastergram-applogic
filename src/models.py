@@ -8,6 +8,7 @@ followers = db.Table('followers',
     db.Column('followed_id', db.Integer, db.ForeignKey('user.id'))
 )
 
+
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     body = db.Column(db.String(1024), unique=False, nullable= False)
@@ -16,6 +17,17 @@ class Comment(db.Model):
 
     def __repr__(self):
         return '<Comment %r>' % self.id
+
+
+class GalleryComment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    body = db.Column(db.String(1024), unique=False, nullable= False)
+    gallery_id = db.Column(db.Integer, db.ForeignKey('gallery.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+
+    def __repr__(self):
+        return '<GalleryComment %r>' % self.id
+
 
 class Image(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -26,11 +38,13 @@ class Image(db.Model):
     def __repr__(self):
         return '<Image %r>' % self.imageurl
 
+
 class Gallery(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     galleryname = db.Column(db.String, unique = False, nullable= False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    images = db.relationship('Image', backref='author', lazy = 'dynamic')
+    images = db.relationship('Image', backref='author', lazy='dynamic')
+    comments = db.relationship('GalleryComment', backref='gallery_author', lazy='dynamic')
 
     def __repr__(self):
         return '<Gallery %r>' % self.galleryname
@@ -41,14 +55,13 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     auth_id = db.Column(db.Integer, unique=True, nullable=False)
     galleries = db.relationship('Gallery', backref='author', lazy = 'dynamic')
-    comments = db.relationship('Comment', backref='author1', lazy = 'dynamic')
+    comments = db.relationship('Comment', backref='comment_author', lazy='dynamic')
+    g_comments = db.relationship('GalleryComment', backref='g_comment_author', lazy='dynamic')
     followed = db.relationship(
         'User', secondary=followers,
         primaryjoin=(followers.c.follower_id == id),
         secondaryjoin=(followers.c.followed_id == id),
         backref=db.backref('followers', lazy='dynamic'), lazy='dynamic')
-
-
 
     def follow(self, user):
         if not self.is_following(user):
@@ -61,10 +74,6 @@ class User(db.Model):
     def is_following(self, user):
         return self.followed.filter(
             followers.c.followed_id == user.id).count() > 0
-
-    #def __init__(self, **kwargs):
-    #    kwargs['password'] = bc.generate_password_hash(kwargs['password'].__str__()).decode('utf-8')
-    #    super(User, self).__init__(**kwargs)
 
     def __repr__(self):
         return '<User %r>' % self.username

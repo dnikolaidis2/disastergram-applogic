@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import requests
 import jwt
 
-bp = Blueprint('app', __name__, url_prefix='/app')
+bp = Blueprint('app', __name__, url_prefix='/api')
 auth_pubkey_json = requests.get('http://disastergram.nikolaidis.tech:5000/auth/pubkey').json()
 auth_pubkey = auth_pubkey_json['public_key']
 
@@ -271,6 +271,7 @@ def list_galleries(token_payload, username):
 
 
 # Deletes gallery from the user.
+# TODO: Need to Delete Images from the Gallery as well!!
 @bp.route('/user/gallery', methods=['DELETE'])
 @require_auth()
 def delete_gallery(token_payload):
@@ -278,7 +279,7 @@ def delete_gallery(token_payload):
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
-    galleryname = request.json.get('gallery_name')
+    galleryname = request.json.get('galleryname')
     if logged_user is None:
         abort(403, 'Logged in user does not exist.')
 
@@ -287,6 +288,15 @@ def delete_gallery(token_payload):
     db.session.commit()
 
     return jsonify({'message': 'Gallery Deleted.'})
+
+
+@bp.route('/user/gallery/upload', methods=['POST'])
+@require_auth()
+def upload_image():
+
+    #https://www.youtube.com/watch?time_continue=381&v=TLgVEBuQURA
+
+    return ''
 
 
 # View the Images of a Gallery.
@@ -300,41 +310,62 @@ def view_gallery(token_payload, username, galleryname):
     if logged_user is None:
         abort(403, 'Logged in user does not exist.')
 
-    requested_gallery = Gallery.query.filter_by(galleryname=galleryname).first()
+    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
+        return jsonify({'message': 'No user with name '+str(username)+' found.'})
 
-    #if requested_gallery.user_id != logged_user.user_id:
+    target_user = User.query.filter_by(username=username).first()
+    requested_gallery = Gallery.query.filter_by(galleryname=galleryname, author=target_user).first()
+
+    if logged_user.id != target_user.id:
+
+        if target_user is None:
+            return jsonify({'message': 'User ' + str(username) + ' does not Exist'})
+
+        if not target_user.is_following(logged_user):
+            return jsonify({'message': 'Cannot view ' + str(username) + ' Gallery. User is not Following you.'})
 
     gallery_images = Image.query.filter_by(gallery_id=requested_gallery.id).all()
 
     output = []
-    gallery_data = {}
 
     for image in gallery_images:
+        gallery_data = {}
         gallery_data['image_url'] = image.imageurl
         output.append(gallery_data)
 
-    return jsonify({'Gallery_images': output})
+    return jsonify({'gallery_images': output})
 
 
-
-
-@bp.route('/user/gallery/upload', methods=['POST'])
+# Add comment to a gallery.
+@bp.route('/user/<username>/gallery/<galleryname>/comment', methods=['POST'])
 @require_auth()
-def upload_image():
+def post_gallery_comment(token_payload, username, galleryname):
 
-    #https://www.youtube.com/watch?time_continue=381&v=TLgVEBuQURA
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
-    return ''
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
 
-@bp.route('/user/gallery_id/image_id/comment', methods=['POST'])
-def post_comment():
-    current_user = User.query.filter_by(username='stavros').first()  # Temporary way to declare current user..
-    
+    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
+        return jsonify({'message': 'No user with name '+str(username)+' found.'})
 
-#@bp.route('/user/<username>', methods=['DELETE'])
-#def delete_user(username):
-#    return ''
+    target_user = User.query.filter_by(username=username).first()
+    target_gallery = Gallery.query.filter_by(galleryname=galleryname, author=target_user).first()
 
+    if logged_user.id != target_user.id:
+
+        if target_user is None:
+            return jsonify({'message': 'User ' + str(username) + ' does not Exist'})
+
+        if not target_user.is_following(logged_user):
+            return jsonify({'message': 'Cannot comment ' + str(username) + ' Gallery. User is not Following you.'})
+
+    gallery_comment = GalleryComment(body=request.json['body'], g_comment_author=target_user, gallery_author=target_gallery)
+    db.session.add(gallery_comment)
+    db.session.commit()
+
+    return jsonify({'message': 'Submitted Comment.'})
 
 
 
