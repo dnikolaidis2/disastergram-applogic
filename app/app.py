@@ -1,14 +1,12 @@
 from flask import request, jsonify, Response, abort, Blueprint
 from app.models import User, UserSchema, Gallery, Image, Comment, GalleryComment
-from app import db
+from app import db, auth_pubkey, auth_address
 from functools import wraps
 from datetime import datetime, timedelta
 import requests
 import jwt
 
 bp = Blueprint('app', __name__, url_prefix='/api')
-auth_pubkey_json = requests.get('http://disastergram.nikolaidis.tech:5000/auth/pubkey').json()
-auth_pubkey = auth_pubkey_json['public_key']
 
 
 def check_token(pub_key):
@@ -78,7 +76,7 @@ def generate_user(payload):
 
         token = request.json.get('token')
 
-    user_data = requests.get('http://disastergram.nikolaidis.tech/auth/user/'+str(payload['sub'])+'?token='+str(token)).json()
+    user_data = requests.get(auth_address + '/auth/user/'+str(payload['sub'])+'?token='+str(token)).json()
     if User.query.filter(User.auth_id == user_data['id']).count() != 0:
         return
     dup_user = User(username=user_data['username'], auth_id=user_data['id'])
@@ -109,7 +107,7 @@ def sync_user(username):
     if User.query.filter(User.username == username).count() != 0:
         return True
 
-    user_data = requests.get('http://disastergram.nikolaidis.tech/auth/user/' + str(username)).json()
+    user_data = requests.get(auth_address + '/auth/user/' + str(username)).json()
 
     if user_data is None:
         return False

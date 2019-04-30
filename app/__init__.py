@@ -2,11 +2,15 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from os import environ, path
+import requests
 
 #from kazoo import client as kz_client
 
 db = SQLAlchemy()
 ma = Marshmallow()
+
+auth_address = 'auth'
+auth_pubkey = None
 
 #my_client = kz_client.KazooClient(hosts='127.0.0.1:2181')
 
@@ -27,6 +31,11 @@ def create_app(test_config=None):
         SQLALCHEMY_DATABASE_URI='postgresql+psycopg2://postgres:1234@app-db/postgres',
         SQLALCHEMY_TRACK_MODIFICATIONS=False
     )
+    # auth_pubkey_json = requests.get('http://disastergram.nikolaidis.tech/auth/pubkey').json()
+    # auth_pubkey = auth_pubkey_json['public_key']
+    # myapp.config['AUTH_PUBLIC_KEY'] = requests.get(auth_address+'/auth/pubkey').json()['public_key']
+
+    auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
 
     if test_config is None:
         # load the instance config if it exists, when not testing
