@@ -1,5 +1,5 @@
 from flask import request, jsonify, Response, abort, Blueprint
-from src.models import User, UserSchema, Gallery, Image, Comment
+from src.models import User, UserSchema, Gallery, Image, Comment, GalleryComment
 from src import db
 from functools import wraps
 from datetime import datetime, timedelta
@@ -9,6 +9,7 @@ import jwt
 bp = Blueprint('app', __name__, url_prefix='/api')
 auth_pubkey_json = requests.get('http://disastergram.nikolaidis.tech:5000/auth/pubkey').json()
 auth_pubkey = auth_pubkey_json['public_key']
+
 
 def check_token(pub_key):
     token = ''
@@ -57,7 +58,8 @@ def check_token(pub_key):
 
     return token_payload
 
-#This function will be used to check incoming users and add them to the applogic database if they don't already exist.
+
+# This function will be used to check incoming users and add them to the applogic database if they don't already exist.
 def generate_user(payload):
     token = ''
     if request.method == 'GET':
@@ -78,14 +80,12 @@ def generate_user(payload):
 
     user_data = requests.get('http://disastergram.nikolaidis.tech/auth/user/'+str(payload['sub'])+'?token='+str(token)).json()
     if User.query.filter(User.auth_id == user_data['id']).count() != 0:
-        #return User.query.filter_by(auth_id=user_data['id']).first()
         return
     dup_user = User(username=user_data['username'], auth_id=user_data['id'])
     db.session.add(dup_user)
     db.session.commit()
 
     return jsonify({'message': 'user created'})
-    #return jsonify({'id': user_data['id']})
 
 
 def require_auth(pub_key="PUBLIC_KEY"):
