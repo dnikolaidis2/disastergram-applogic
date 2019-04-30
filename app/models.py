@@ -1,6 +1,5 @@
-from src import db
-from src import ma
-from src import bc
+from app import db
+from app import ma
 
 
 followers = db.Table('followers',

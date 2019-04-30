@@ -1,6 +1,6 @@
 version: '3.7'
 
 services:
-  app-logic:
+  app:
     volumes:
-      - ./src:/user/src/app
+      - .:/user/src/app

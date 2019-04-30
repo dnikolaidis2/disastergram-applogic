@@ -1,6 +1,6 @@
 from flask import request, jsonify, Response, abort, Blueprint
-from src.models import User, UserSchema, Gallery, Image, Comment, GalleryComment
-from src import db
+from app.models import User, UserSchema, Gallery, Image, Comment, GalleryComment
+from app import db
 from functools import wraps
 from datetime import datetime, timedelta
 import requests
