@@ -3,8 +3,10 @@ from app.models import User, UserSchema, Gallery, Image, Comment, GalleryComment
 from app import db, auth_pubkey, auth_address
 from functools import wraps
 from datetime import datetime, timedelta
+from sqlalchemy.dialects.postgresql import UUID
 import requests
 import jwt
+import uuid
 
 bp = Blueprint('app', __name__, url_prefix='/api')
 
@@ -123,7 +125,8 @@ def sync_user(username):
 @require_auth()
 def test_pubkey(token_payload):
     generate_user(token_payload)
-    return jsonify({'Message': 'User added?'})
+    return jsonify({'pubkey': auth_pubkey})
+
 
 # Used for Testing Purposes.
 @bp.route('/user', methods=['GET'])

@@ -9,8 +9,10 @@ import requests
 db = SQLAlchemy()
 ma = Marshmallow()
 
-auth_address = 'http://auth:5000'
-auth_pubkey = None
+#auth_address = 'http://auth:5000'
+auth_address = 'http://disastergram.nikolaidis.tech'
+auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
+#auth_pubkey = None
 
 #my_client = kz_client.KazooClient(hosts='127.0.0.1:2181')
 
@@ -35,7 +37,7 @@ def create_app(test_config=None):
     # auth_pubkey = auth_pubkey_json['public_key']
     # myapp.config['AUTH_PUBLIC_KEY'] = requests.get(auth_address+'/auth/pubkey').json()['public_key']
 
-    auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
+    # auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
 
     if test_config is None:
         # load the instance config if it exists, when not testing

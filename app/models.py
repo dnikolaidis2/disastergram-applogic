@@ -1,5 +1,6 @@
 from app import db
 from app import ma
+from sqlalchemy.dialects.postgresql import UUID
 
 
 followers = db.Table('followers',
@@ -52,7 +53,7 @@ class Gallery(db.Model):
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    auth_id = db.Column(db.Integer, unique=True, nullable=False)
+    auth_id = db.Column(db.String(120), unique=True, nullable=False)
     galleries = db.relationship('Gallery', backref='author', lazy = 'dynamic')
     comments = db.relationship('Comment', backref='comment_author', lazy='dynamic')
     g_comments = db.relationship('GalleryComment', backref='g_comment_author', lazy='dynamic')
