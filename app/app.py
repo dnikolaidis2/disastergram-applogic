@@ -144,7 +144,7 @@ def get_all_users():
         output.append(user_data)
     return jsonify({'users': output})
 
-# Can Add Friends. Also syncing FLAWLESSLY with Auth - Database!
+# Can Follow Friends.
 @bp.route('/user/follow', methods=['POST'])
 @require_auth()
 def add_friend(token_payload):
@@ -152,24 +152,28 @@ def add_friend(token_payload):
     generate_user(token_payload)  # If user is not in the database, add him.
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
-    username = request.json.get('username')
+    username = request.json.get('username')  # Get username from JSON.
 
     if logged_user is None:
-        abort(403, 'Logged in user does not exist.')
+        abort(403, 'Request Blocked. User Token not Valid.')
 
     if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
-        return jsonify({'message': 'No user with name '+str(username)+' found.'})
+        abort(404, 'User not Found.')
 
     user = User.query.filter_by(username=username).first()
 
     if user.username == logged_user.username:
-        return jsonify({'message': 'Cannot Follow yourself.'})
+        abort(403, 'Cannot Follow Yourself.')
+
+    if logged_user.is_following(user):
+        return jsonify({'message': 'User already followed.'}), 200
 
     logged_user.follow(user)
     db.session.commit()
-    return jsonify({'message': 'User '+str(username)+' added to your Friends.'})
 
+    return jsonify({'message': 'User '+str(username)+' added to your Friends.'}), 201
 
+# Gets a list of users friends names and id's
 @bp.route('/user/friends', methods=['GET'])
 @require_auth()
 def get_friends(token_payload):
@@ -177,25 +181,25 @@ def get_friends(token_payload):
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
-    if logged_user is None:
-        abort(403, 'Logged in user does not exist.')
+    if logged_user is None:   # Probably not necessary.
+        abort(403, 'Request Blocked. User Token not Valid.')
 
     users = logged_user.followed.all()
 
     if users is None:
         # TODO : Error Handling.
-        return jsonify({'message': 'No friends found.'})
+        return jsonify({'message': 'No friends found.'}), 204
 
     output = []
 
     for user in users:
         user_data = {}
-        #user_data['id'] = user.id
+        user_data['id'] = user.id
         user_data['username'] = user.username
         output.append(user_data)
-    return jsonify({'Followed users': output})
+    return jsonify({'Followed users': output}), 201
 
-
+# Unfollow a friend.
 @bp.route('/user/unfollow', methods=['DELETE'])
 @require_auth()
 def delete_friend(token_payload):
@@ -206,12 +210,15 @@ def delete_friend(token_payload):
     username = request.json.get('username')
 
     if logged_user is None:
-        abort(403, 'Logged in user does not exist.')
+        abort(403, 'Request Blocked. User Token not Valid.')
 
     if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
-        return jsonify({'message': 'No user with name '+str(username)+' found.'})
+        return jsonify({'message': 'User not found.'}), 404
 
     user = User.query.filter_by(username=username).first()
+
+    if user.username == logged_user.username:
+        abort(403, 'Cannot Follow Yourself.')
 
     if not logged_user.is_following(user):
         return jsonify({'message': 'User already not followed.'})
@@ -219,7 +226,7 @@ def delete_friend(token_payload):
     logged_user.unfollow(user)
     db.session.commit()
 
-    return jsonify({'message': 'User '+str(username)+' deleted from your Friends.'})
+    return jsonify({'message': 'Friend Removed.'}), 204
 
 
 # Creates an empty gallery for the user.
@@ -229,14 +236,21 @@ def create_gallery(token_payload):
 
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+    galleryname = request.json['galleryname']
     if logged_user is None:
-        abort(403, 'Logged in user does not exist.')
+        abort(403, 'Request Blocked. User Token not Valid.')
 
-    new_gallery = Gallery(galleryname=request.json['name'], author=logged_user)
+    if galleryname is None:
+        abort(400, 'Gallery Name field is empty.')
+
+    if Gallery.query.filter_by(galleryname=galleryname, author=logged_user):
+        abort(200, 'Gallery name already exists.')
+
+    new_gallery = Gallery(galleryname=galleryname, author=logged_user)
     db.session.add(new_gallery)
     db.session.commit()
 
-    return jsonify({'message': 'Gallery Created.'})
+    return jsonify({'message': 'Gallery Created.'}), 201
 
 
 # GET a list of the user's galleries OR user's friends GALLERIES.
@@ -246,21 +260,23 @@ def list_galleries(token_payload, username):
 
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+    if logged_user is None:
+        abort(403, 'Request Blocked. User Token not Valid.')
 
     if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
-        return jsonify({'message': 'No user with name '+str(username)+' found.'})
+        abort(404, 'User not Found.')
 
     target_user = User.query.filter_by(username=username).first()
 
     if logged_user.username != username:
 
-        if target_user is None:
-            return jsonify({'message': 'User '+str(username)+' does not Exist'})
-
         if not target_user.is_following(logged_user):
-            return jsonify({'message': 'Cannot view '+str(username)+' Gallery. User is not Following you.'})
+            abort(401, 'User not Following you.')
 
     galleries = Gallery.query.filter_by(user_id=target_user.id)
+
+    if galleries is None:
+        return jsonify({'message': 'No galleries found.'}), 204
 
     output = []
 
