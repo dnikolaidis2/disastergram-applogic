@@ -1,29 +1,56 @@
 from app import db
 from app import ma
 from sqlalchemy.dialects.postgresql import UUID
+import uuid
 
+def user_uuid():
+    uid = uuid.uuid4()
+    while User.query.get(uid) is not None:
+        uid = uuid.uuid4()
 
+    return uid
+
+def gallery_uuid():
+    uid = uuid.uuid4()
+    while Gallery.query.get(uid) is not None:
+        uid = uuid.uuid4()
+
+    return uid
+
+def gallery_comment_uuid():
+    uid = uuid.uuid4()
+    while GalleryComment.query.get(uid) is not None:
+        uid = uuid.uuid4()
+
+    return uid
+
+def comment_uuid():
+    uid = uuid.uuid4()
+    while Comment.query.get(uid) is not None:
+        uid = uuid.uuid4()
+
+    return uid
 followers = db.Table('followers',
-    db.Column('follower_id', db.Integer, db.ForeignKey('user.id')),
-    db.Column('followed_id', db.Integer, db.ForeignKey('user.id'))
+    db.Column('follower_id', UUID(as_uuid=True), db.ForeignKey('user.id')),
+    db.Column('followed_id', UUID(as_uuid=True), db.ForeignKey('user.id'))
 )
 
 
 class Comment(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(UUID(as_uuid=True), default=gallery_comment_uuid, primary_key=True,  unique=True, index=True)
     body = db.Column(db.String(1024), unique=False, nullable= False)
     image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
 
     def __repr__(self):
         return '<Comment %r>' % self.id
 
 
 class GalleryComment(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(UUID(as_uuid=True), default=gallery_comment_uuid, primary_key=True,  unique=True, index=True)
     body = db.Column(db.String(1024), unique=False, nullable= False)
-    gallery_id = db.Column(db.Integer, db.ForeignKey('gallery.id'))
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    gallery_id = db.Column(UUID(as_uuid=True), db.ForeignKey('gallery.id'))
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
 
     def __repr__(self):
         return '<GalleryComment %r>' % self.id
@@ -31,7 +58,7 @@ class GalleryComment(db.Model):
 
 class Image(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    gallery_id = db.Column(db.Integer, db.ForeignKey('gallery.id'))
+    gallery_id = db.Column(UUID(as_uuid=True), db.ForeignKey('gallery.id'))
     imageurl = db.Column(db.String(100), unique = True, nullable = False)
     comments = db.relationship('Comment', backref='author', lazy = 'dynamic')
 
@@ -40,9 +67,9 @@ class Image(db.Model):
 
 
 class Gallery(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(UUID(as_uuid=True), default=gallery_uuid, primary_key=True,  unique=True, index=True)
     galleryname = db.Column(db.String, unique = False, nullable= False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
     images = db.relationship('Image', backref='author', lazy='dynamic')
     comments = db.relationship('GalleryComment', backref='gallery_author', lazy='dynamic')
 
@@ -51,7 +78,7 @@ class Gallery(db.Model):
 
 
 class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(UUID(as_uuid=True), default=user_uuid, primary_key=True,  unique=True, index=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     auth_id = db.Column(db.String(120), unique=True, nullable=False)
     galleries = db.relationship('Gallery', backref='author', lazy = 'dynamic')

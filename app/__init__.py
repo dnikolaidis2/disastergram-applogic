@@ -45,10 +45,8 @@ def create_app(test_config=None):
     else:
         myapp.config.from_mapping(test_config)
 
-
     db.init_app(myapp)
     ma.init_app(myapp)
-
     # for some reason when not in development
     # this call fails /shrug
     flask_env = myapp.config.get('ENV', '')

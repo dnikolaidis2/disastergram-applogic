@@ -3,6 +3,7 @@ from app.models import User, UserSchema, Gallery, Image, Comment, GalleryComment
 from app import db, auth_pubkey, auth_address
 from functools import wraps
 from datetime import datetime, timedelta
+from flask_apispec import doc
 from sqlalchemy.dialects.postgresql import UUID
 import requests
 import jwt
@@ -38,7 +39,7 @@ def check_token(pub_key):
         token_payload = jwt.decode(token,
                                    pub_key,
                                    leeway=timedelta(days=30),    # give 30 second leeway on time checks
-                                   issuer='auth_server',
+                                   issuer='auth',
                                    algorithms='RS256')
     except jwt.InvalidSignatureError:
         # signature of token does not match
@@ -266,6 +267,7 @@ def list_galleries(token_payload, username):
     for gallery in galleries:
         gallery_data = {}
         gallery_data['galleryname'] = gallery.galleryname
+        gallery_data['id'] = gallery.id
         output.append(gallery_data)
 
     return jsonify({'Galleries': output})
@@ -280,11 +282,11 @@ def delete_gallery(token_payload):
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
-    galleryname = request.json.get('galleryname')
+    gallery_id = request.json.get('gallery_id')
     if logged_user is None:
         abort(403, 'Logged in user does not exist.')
 
-    requested_gallery = Gallery.query.filter_by(galleryname=galleryname, author=logged_user).first()
+    requested_gallery = Gallery.query.filter_by(id=gallery_id, author=logged_user).first()
     db.session.delete(requested_gallery)
     db.session.commit()
 
@@ -302,9 +304,9 @@ def upload_image():
 
 # View the Images of a Gallery.
 # TODO : Build legit URL Generation and Storing with Storage Server.
-@bp.route('/user/<username>/gallery/<galleryname>', methods=['GET'])
+@bp.route('/user/<username>/gallery/<gallery_id>', methods=['GET'])
 @require_auth()
-def view_gallery(token_payload, username, galleryname):
+def view_gallery(token_payload, username, gallery_id):
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
@@ -315,7 +317,7 @@ def view_gallery(token_payload, username, galleryname):
         return jsonify({'message': 'No user with name '+str(username)+' found.'})
 
     target_user = User.query.filter_by(username=username).first()
-    requested_gallery = Gallery.query.filter_by(galleryname=galleryname, author=target_user).first()
+    requested_gallery = Gallery.query.filter_by(id=gallery_id, author=target_user).first()
 
     if logged_user.id != target_user.id:
 
@@ -338,9 +340,9 @@ def view_gallery(token_payload, username, galleryname):
 
 
 # Add comment to a gallery.
-@bp.route('/user/<username>/gallery/<galleryname>/comment', methods=['POST'])
+@bp.route('/user/<username>/gallery/<gallery_id>/comment', methods=['POST'])
 @require_auth()
-def post_gallery_comment(token_payload, username, galleryname):
+def post_gallery_comment(token_payload, username, gallery_id):
 
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
@@ -352,7 +354,7 @@ def post_gallery_comment(token_payload, username, galleryname):
         return jsonify({'message': 'No user with name '+str(username)+' found.'})
 
     target_user = User.query.filter_by(username=username).first()
-    target_gallery = Gallery.query.filter_by(galleryname=galleryname, author=target_user).first()
+    target_gallery = Gallery.query.filter_by(id=gallery_id, author=target_user).first()
 
     if logged_user.id != target_user.id:
 
@@ -369,11 +371,42 @@ def post_gallery_comment(token_payload, username, galleryname):
     return jsonify({'message': 'Submitted Comment.'})
 
 
+# View Gallery Comment
+@bp.route('/user/<username>/gallery/<gallery_id>/comments', methods=['GET'])
+@require_auth()
+def view_gallery_comment(token_payload, username, gallery_id):
 
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
 
+    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
+        return jsonify({'message': 'No user with name '+str(username)+' found.'})
 
+    target_user = User.query.filter_by(username=username).first()
+    target_gallery = Gallery.query.filter_by(id=gallery_id, author=target_user).first()
 
+    if logged_user.id != target_user.id:
+
+        if target_user is None:
+            return jsonify({'message': 'User ' + str(username) + ' does not Exist'})
+
+        if not target_user.is_following(logged_user):
+            return jsonify({'message': 'Cannot comment ' + str(username) + ' Gallery. User is not Following you.'})
+
+    gallery_comments = GalleryComment.query.filter_by(gallery_id=gallery_id, g_comment_author=target_user, gallery_author=target_gallery)
+
+    output = []
+
+    for comment in gallery_comments:
+        comment_data = {}
+        comment_data['id'] = comment.id
+        comment_data['body'] = comment.body
+        output.append(comment_data)
+
+    return jsonify({'comments': output})
 
 
 
