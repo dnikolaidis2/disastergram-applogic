@@ -189,7 +189,7 @@ def get_friends(token_payload):
 
     for user in users:
         user_data = {}
-        user_data['id'] = user.id
+        #user_data['id'] = user.id
         user_data['username'] = user.username
         output.append(user_data)
     return jsonify({'Followed users': output})
