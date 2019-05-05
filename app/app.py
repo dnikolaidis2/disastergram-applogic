@@ -1,4 +1,4 @@
-from flask import request, jsonify, Response, abort, Blueprint
+from flask import request, jsonify, Response, abort, Blueprint, current_app
 from app.models import User, UserSchema, Gallery, Image, Comment, GalleryComment
 from app import db, auth_pubkey, auth_address
 from functools import wraps
@@ -9,8 +9,8 @@ import requests
 import jwt
 import uuid
 
-bp = Blueprint('app', __name__, url_prefix='/api')
 
+bp = Blueprint('app', __name__, url_prefix='/api')
 
 def check_token(pub_key):
     token = ''
@@ -311,8 +311,67 @@ def delete_gallery(token_payload):
 
 @bp.route('/user/gallery/upload', methods=['POST'])
 @require_auth()
-def upload_image():
+def upload_image(token_payload):
 
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+    if logged_user is None:
+        abort(403, 'Request Blocked. User Token not Valid.')
+
+    gallery_id = request.json.get('gallery_id')
+
+    if gallery_id is None:
+        abort(400, 'Gallery id field is empty.')
+
+    target_gallery=Gallery.query.filter_by(id=gallery_id, author=logged_user)
+
+    if target_gallery is None:
+        abort(404, 'Gallery not Found.')
+
+    if 'file' not in request.files:
+        abort(400, 'No file part')
+
+    file = request.files['file']
+
+    if file.filename == '':
+        abort(400, 'No selected file')
+
+    temp_url = str(uuid.uuid4())  # A temporary URL for inserting the image in the Table and obtaining
+    # the image id for crafting the token which will become the image URL.
+
+    image = Image(imageurl=temp_url, author=target_gallery)
+    db.session.add(image)
+    db.session.commit()
+
+    req_image = Image.query.filter_by(imageurl=temp_url, author=target_gallery)
+
+    payload = {
+        'iss': 'app-logic',
+        'sub': str(req_image.id.int),
+        'exp': 0,
+        'nbf': datetime.utcnow()
+    }
+    # datetime.utcnow() + timedelta(hours=2),  # 2 hour token
+
+    private_key = current_app.config.get('PRIVATE_KEY')
+    if private_key is None:
+        abort(500, "Server error occurred while processing request")
+
+    token = jwt.encode(payload, private_key, algorithm='RS256')
+
+    # TODO: Randomly selecting two active Storage Servers. Zookeeper?
+    # URL for testing.
+    url = 'http://s1/'+str(token.decode('utf-8'))
+
+
+
+    files = {'file': (file, 'image/jpeg', {'Expires': '0'})}
+    requests.post(url, files=files)
+
+    # TODO: If image wasn't stored , don't update URL.
+
+    req_image.update_url(url)
+    db.session.commit()
     #https://www.youtube.com/watch?time_continue=381&v=TLgVEBuQURA
 
     return ''
@@ -425,8 +484,13 @@ def view_gallery_comment(token_payload, username, gallery_id):
     return jsonify({'comments': output})
 
 
+@bp.route('/pubkey')
+def pub_key():
+    public_key = current_app.config.get('PUBLIC_KEY')
+    if public_key is None:
+        abort(500, "Server error occurred while processing request")
 
-
+    return jsonify(public_key=public_key.decode('utf-8'))
 
 
 

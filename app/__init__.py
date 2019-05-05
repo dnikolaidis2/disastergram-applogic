@@ -33,6 +33,11 @@ def create_app(test_config=None):
         SQLALCHEMY_DATABASE_URI='postgresql+psycopg2://postgres:1234@app-db/postgres',
         SQLALCHEMY_TRACK_MODIFICATIONS=False
     )
+    if test_config is None:
+        # load the instance config if it exists, when not testing
+        myapp.config.from_pyfile(path.join(myapp.instance_path, 'config.py'), silent=True)
+    else:
+        myapp.config.from_mapping(test_config)
     # auth_pubkey_json = requests.get('http://disastergram.nikolaidis.tech/auth/pubkey').json()
     # auth_pubkey = auth_pubkey_json['public_key']
     # myapp.config['AUTH_PUBLIC_KEY'] = requests.get(auth_address+'/auth/pubkey').json()['public_key']

@@ -1,6 +1,7 @@
 from app import db
 from app import ma
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import update
 import uuid
 
 def user_uuid():
@@ -61,6 +62,9 @@ class Image(db.Model):
     gallery_id = db.Column(UUID(as_uuid=True), db.ForeignKey('gallery.id'))
     imageurl = db.Column(db.String(100), unique = True, nullable = False)
     comments = db.relationship('Comment', backref='author', lazy = 'dynamic')
+
+    def update_url(self, url):
+        self.imageurl = url
 
     def __repr__(self):
         return '<Image %r>' % self.imageurl
