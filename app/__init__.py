@@ -9,9 +9,11 @@ import requests
 db = SQLAlchemy()
 ma = Marshmallow()
 
-#auth_address = 'http://auth:5000'
-auth_address = 'http://disastergram.nikolaidis.tech'
+auth_address = 'http://auth:5000'
+#auth_address = 'http://disastergram.nikolaidis.tech'
+storage_address = 'http://foo'
 auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
+
 #auth_pubkey = None
 
 #my_client = kz_client.KazooClient(hosts='127.0.0.1:2181')

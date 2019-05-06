@@ -1,6 +1,6 @@
 from flask import request, jsonify, Response, abort, Blueprint, current_app
 from app.models import User, UserSchema, Gallery, Image, Comment, GalleryComment
-from app import db, auth_pubkey, auth_address
+from app import db, auth_pubkey, auth_address, storage_address
 from functools import wraps
 from datetime import datetime, timedelta
 from flask_apispec import doc
@@ -361,7 +361,7 @@ def upload_image(token_payload):
 
     # TODO: Randomly selecting two active Storage Servers. Zookeeper?
     # URL for testing.
-    url = 'http://s1/'+str(token.decode('utf-8'))
+    url = 'http://'+storage_address+'/'+str(token.decode('utf-8'))
 
 
 
@@ -374,7 +374,7 @@ def upload_image(token_payload):
     db.session.commit()
     #https://www.youtube.com/watch?time_continue=381&v=TLgVEBuQURA
 
-    return ''
+    return 200
 
 
 # View the Images of a Gallery.
@@ -427,6 +427,9 @@ def post_gallery_comment(token_payload, username, gallery_id):
 
     if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
         return jsonify({'message': 'No user with name '+str(username)+' found.'})
+
+    if len(request.json['body']) > 1024:
+        abort(413, 'Payload Too Large')
 
     target_user = User.query.filter_by(username=username).first()
     target_gallery = Gallery.query.filter_by(id=gallery_id, author=target_user).first()
