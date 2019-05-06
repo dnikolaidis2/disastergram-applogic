@@ -1,9 +1,8 @@
 from flask import request, jsonify, Response, abort, Blueprint, current_app
-from app.models import User, UserSchema, Gallery, Image, Comment, GalleryComment
+from app.models import User, UserSchema, Gallery, Image, Comment, GalleryComment, random_generator
 from app import db, auth_pubkey, auth_address, storage_address
 from functools import wraps
 from datetime import datetime, timedelta
-from flask_apispec import doc
 from sqlalchemy.dialects.postgresql import UUID
 import requests
 import jwt
@@ -243,8 +242,8 @@ def create_gallery(token_payload):
     if galleryname is None:
         abort(400, 'Gallery Name field is empty.')
 
-    if Gallery.query.filter_by(galleryname=galleryname, author=logged_user):
-        abort(200, 'Gallery name already exists.')
+    if Gallery.query.filter_by(galleryname=galleryname, author=logged_user) is None:
+        return jsonify({'message': 'Gallery name already exists.'}), 200
 
     new_gallery = Gallery(galleryname=galleryname, author=logged_user)
     db.session.add(new_gallery)
@@ -308,6 +307,90 @@ def delete_gallery(token_payload):
 
     return jsonify({'message': 'Gallery Deleted.'})
 
+# Add comment to a gallery.
+@bp.route('/user/gallery/<gallery_id>/comment', methods=['POST'])
+@require_auth()
+def post_gallery_comment(token_payload, gallery_id):
+
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
+
+    if len(request.json['body']) > 1024:
+        abort(413, 'Payload Too Large')
+
+    if len(request.json['body']) > 1024:
+        abort(413, 'Payload Too Large')
+
+    if gallery_id is None:
+        abort(400, 'Gallery id field is empty.')
+
+    target_gallery = Gallery.query.filter_by(id=gallery_id).first()
+
+    if target_gallery is None:
+        abort(404, 'Gallery not Found.')
+
+    target_user = User.query.filter_by(id=target_gallery.user_id).first()
+
+    if logged_user.id != target_user.id:
+
+        if target_user is None:
+            abort(404, 'Gallery owner not found.')
+
+        if not target_user.is_following(logged_user):
+            abort(403, 'Access Forbidden. User is not Following you.')
+
+    gallery_comment = GalleryComment(body=request.json['body'], g_comment_author=target_user, gallery_author=target_gallery)
+    db.session.add(gallery_comment)
+    db.session.commit()
+
+    return jsonify({'message': 'Submitted Comment.'})
+
+
+# View Gallery Comments
+@bp.route('/user/gallery/<gallery_id>/comments', methods=['GET'])
+@require_auth()
+def view_gallery_comment(token_payload, gallery_id):
+
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
+
+    target_gallery = Gallery.query.filter_by(id=gallery_id).first()
+
+    if target_gallery is None:
+        abort(404, 'Gallery not Found.')
+
+    target_user = User.query.filter_by(id=target_gallery.user_id).first()
+
+    if logged_user.id != target_user.id:
+
+        if target_user is None:
+            abort(404, 'Gallery owner not found.')
+
+        if not target_user.is_following(logged_user):
+            abort(403, 'Access Forbidden. User is not Following you.')
+
+    gallery_comments = GalleryComment.query.filter_by(gallery_id=gallery_id, g_comment_author=target_user, gallery_author=target_gallery)
+
+    if gallery_comments is None:
+        return jsonify({'message': 'No comments found.'}), 204
+
+    output = []
+
+    for comment in gallery_comments:
+        comment_data = {}
+        comment_data['user_id'] = comment.user_id
+        comment_data['id'] = comment.id
+        comment_data['body'] = comment.body
+        output.append(comment_data)
+
+    return jsonify({'comments': output})
+
 
 @bp.route('/user/gallery/upload', methods=['POST'])
 @require_auth()
@@ -339,7 +422,7 @@ def upload_image(token_payload):
     temp_url = str(uuid.uuid4())  # A temporary URL for inserting the image in the Table and obtaining
     # the image id for crafting the token which will become the image URL.
 
-    image = Image(imageurl=temp_url, author=target_gallery)
+    image = Image(id=random_generator, imageurl=temp_url, author=target_gallery)
     db.session.add(image)
     db.session.commit()
 
@@ -347,11 +430,11 @@ def upload_image(token_payload):
 
     payload = {
         'iss': 'app-logic',
-        'sub': str(req_image.id.int),
-        'exp': 0,
+        'sub': str(req_image.id),
+        'exp': datetime.utcnow() + timedelta(minutes=15),  # 15 minute token,
+        'purpose': 'CREATE',
         'nbf': datetime.utcnow()
     }
-    # datetime.utcnow() + timedelta(hours=2),  # 2 hour token
 
     private_key = current_app.config.get('PRIVATE_KEY')
     if private_key is None:
@@ -361,130 +444,66 @@ def upload_image(token_payload):
 
     # TODO: Randomly selecting two active Storage Servers. Zookeeper?
     # URL for testing.
-    url = 'http://'+storage_address+'/'+str(token.decode('utf-8'))
+    url = 'http://'+storage_address+'/'+str(req_image.id)+'/'+str(token.decode('utf-8'))
 
+    files = {'file': ('image_id.jpg', file, 'image/jpeg')}
+    response = requests.post(url, files=files)
 
-
-    files = {'file': (file, 'image/jpeg', {'Expires': '0'})}
-    requests.post(url, files=files)
-
-    # TODO: If image wasn't stored , don't update URL.
+    if not response.status_code == 200 or response.status_code == 201:
+        abort(500, "Server error occurred while processing request")
 
     req_image.update_url(url)
     db.session.commit()
-    #https://www.youtube.com/watch?time_continue=381&v=TLgVEBuQURA
 
     return 200
 
 
 # View the Images of a Gallery.
 # TODO : Build legit URL Generation and Storing with Storage Server.
-@bp.route('/user/<username>/gallery/<gallery_id>', methods=['GET'])
+@bp.route('/user/gallery/<gallery_id>', methods=['GET'])
 @require_auth()
-def view_gallery(token_payload, username, gallery_id):
+def view_gallery(token_payload, gallery_id):
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
     if logged_user is None:
         abort(403, 'Logged in user does not exist.')
 
-    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
-        return jsonify({'message': 'No user with name '+str(username)+' found.'})
+    if gallery_id is None:
+        abort(400, 'Gallery id field is empty.')
 
-    target_user = User.query.filter_by(username=username).first()
-    requested_gallery = Gallery.query.filter_by(id=gallery_id, author=target_user).first()
+    target_gallery = Gallery.query.filter_by(id=gallery_id).first()
+
+    if target_gallery is None:
+        abort(404, 'Gallery not Found.')
+
+    target_user = User.query.filter_by(id=target_gallery.user_id).first()
 
     if logged_user.id != target_user.id:
 
         if target_user is None:
-            return jsonify({'message': 'User ' + str(username) + ' does not Exist'})
+            abort(404, 'Gallery owner not found.')
 
         if not target_user.is_following(logged_user):
-            return jsonify({'message': 'Cannot view ' + str(username) + ' Gallery. User is not Following you.'})
+            abort(403, 'Access Forbidden. User is not Following you.')
 
-    gallery_images = Image.query.filter_by(gallery_id=requested_gallery.id).all()
+    gallery_images = Image.query.filter_by(gallery_id=target_gallery.id).all()
+
+    if gallery_images is None:
+        return jsonify({'message': 'No images in gallery.'}), 204
 
     output = []
 
     for image in gallery_images:
-        gallery_data = {}
-        gallery_data['image_url'] = image.imageurl
-        output.append(gallery_data)
+        image_data = {}
+        image_data['image_id'] = image.id
+        image_data['image_url'] = image.imageurl
+        output.append(image_data)
 
     return jsonify({'gallery_images': output})
 
 
-# Add comment to a gallery.
-@bp.route('/user/<username>/gallery/<gallery_id>/comment', methods=['POST'])
-@require_auth()
-def post_gallery_comment(token_payload, username, gallery_id):
 
-    generate_user(token_payload)
-    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
-
-    if logged_user is None:
-        abort(403, 'Logged in user does not exist.')
-
-    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
-        return jsonify({'message': 'No user with name '+str(username)+' found.'})
-
-    if len(request.json['body']) > 1024:
-        abort(413, 'Payload Too Large')
-
-    target_user = User.query.filter_by(username=username).first()
-    target_gallery = Gallery.query.filter_by(id=gallery_id, author=target_user).first()
-
-    if logged_user.id != target_user.id:
-
-        if target_user is None:
-            return jsonify({'message': 'User ' + str(username) + ' does not Exist'})
-
-        if not target_user.is_following(logged_user):
-            return jsonify({'message': 'Cannot comment ' + str(username) + ' Gallery. User is not Following you.'})
-
-    gallery_comment = GalleryComment(body=request.json['body'], g_comment_author=target_user, gallery_author=target_gallery)
-    db.session.add(gallery_comment)
-    db.session.commit()
-
-    return jsonify({'message': 'Submitted Comment.'})
-
-
-# View Gallery Comment
-@bp.route('/user/<username>/gallery/<gallery_id>/comments', methods=['GET'])
-@require_auth()
-def view_gallery_comment(token_payload, username, gallery_id):
-
-    generate_user(token_payload)
-    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
-
-    if logged_user is None:
-        abort(403, 'Logged in user does not exist.')
-
-    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
-        return jsonify({'message': 'No user with name '+str(username)+' found.'})
-
-    target_user = User.query.filter_by(username=username).first()
-    target_gallery = Gallery.query.filter_by(id=gallery_id, author=target_user).first()
-
-    if logged_user.id != target_user.id:
-
-        if target_user is None:
-            return jsonify({'message': 'User ' + str(username) + ' does not Exist'})
-
-        if not target_user.is_following(logged_user):
-            return jsonify({'message': 'Cannot comment ' + str(username) + ' Gallery. User is not Following you.'})
-
-    gallery_comments = GalleryComment.query.filter_by(gallery_id=gallery_id, g_comment_author=target_user, gallery_author=target_gallery)
-
-    output = []
-
-    for comment in gallery_comments:
-        comment_data = {}
-        comment_data['id'] = comment.id
-        comment_data['body'] = comment.body
-        output.append(comment_data)
-
-    return jsonify({'comments': output})
 
 
 @bp.route('/pubkey')

@@ -12,7 +12,8 @@ ma = Marshmallow()
 auth_address = 'http://auth:5000'
 #auth_address = 'http://disastergram.nikolaidis.tech'
 storage_address = 'http://foo'
-auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
+#auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
+auth_pubkey = None
 
 #auth_pubkey = None
 
@@ -43,8 +44,8 @@ def create_app(test_config=None):
     # auth_pubkey_json = requests.get('http://disastergram.nikolaidis.tech/auth/pubkey').json()
     # auth_pubkey = auth_pubkey_json['public_key']
     # myapp.config['AUTH_PUBLIC_KEY'] = requests.get(auth_address+'/auth/pubkey').json()['public_key']
-
-    # auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
+    global auth_pubkey
+    auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
 
     if test_config is None:
         # load the instance config if it exists, when not testing

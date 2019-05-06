@@ -3,6 +3,12 @@ from app import ma
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import update
 import uuid
+import string
+import random
+
+def random_generator():
+    return ''.join([random.choice(string.ascii_letters + string.digits) for n in range(32)])
+
 
 def user_uuid():
     uid = uuid.uuid4()
@@ -58,7 +64,7 @@ class GalleryComment(db.Model):
 
 
 class Image(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String, primary_key=True,  unique=True, index=True)
     gallery_id = db.Column(UUID(as_uuid=True), db.ForeignKey('gallery.id'))
     imageurl = db.Column(db.String(100), unique = True, nullable = False)
     comments = db.relationship('Comment', backref='author', lazy = 'dynamic')
