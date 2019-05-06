@@ -503,6 +503,50 @@ def view_gallery(token_payload, gallery_id):
     return jsonify({'gallery_images': output})
 
 
+@bp.route('/user/image/<image_id>', methods=['DELETE'])
+def delete_image():
+    return ''
+
+# Add comment to a image.
+@bp.route('/user/image/<image_id>/comment', methods=['POST'])
+@require_auth()
+def post_image_comment(token_payload, image_id):
+
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
+
+    if len(request.json['body']) > 1024:
+        abort(413, 'Payload Too Large')
+
+    if len(request.json['body']) > 1024:
+        abort(413, 'Payload Too Large')
+
+    if image_id is None:
+        abort(400, 'Image id field is empty.')
+
+    target_image = Image.query.filter_by(id=image_id).first()
+
+    if target_image is None:
+        abort(404, 'Image not Found.')
+
+    target_user = User.query.filter_by(id=target_image.user_id).first()
+
+    if logged_user.id != target_user.id:
+
+        if target_user is None:
+            abort(404, 'Gallery owner not found.')
+
+        if not target_user.is_following(logged_user):
+            abort(403, 'Access Forbidden. User is not Following you.')
+
+    image_comment = Comment(body=request.json['body'], comment_author=target_user, image_author=target_image)
+    db.session.add(image_comment)
+    db.session.commit()
+
+    return jsonify({'message': 'Submitted Comment.'})
 
 
 

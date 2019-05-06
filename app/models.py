@@ -66,6 +66,7 @@ class GalleryComment(db.Model):
 class Image(db.Model):
     id = db.Column(db.String, primary_key=True,  unique=True, index=True)
     gallery_id = db.Column(UUID(as_uuid=True), db.ForeignKey('gallery.id'))
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
     imageurl = db.Column(db.String(100), unique = True, nullable = False)
     comments = db.relationship('Comment', backref='author', lazy = 'dynamic')
 
@@ -91,7 +92,8 @@ class User(db.Model):
     id = db.Column(UUID(as_uuid=True), default=user_uuid, primary_key=True,  unique=True, index=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     auth_id = db.Column(db.String(120), unique=True, nullable=False)
-    galleries = db.relationship('Gallery', backref='author', lazy = 'dynamic')
+    galleries = db.relationship('Gallery', backref='author', lazy='dynamic')
+    images = db.relationship('Image', backref='image_author', lazy='dynamic')
     comments = db.relationship('Comment', backref='comment_author', lazy='dynamic')
     g_comments = db.relationship('GalleryComment', backref='g_comment_author', lazy='dynamic')
     followed = db.relationship(
