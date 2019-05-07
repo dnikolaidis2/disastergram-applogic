@@ -185,7 +185,7 @@ def get_friends(token_payload):
 
     users = logged_user.followed.all()
 
-    if users is None:
+    if not users:
         # TODO : Error Handling.
         return jsonify({'message': 'No friends found.'}), 204
 
@@ -274,7 +274,7 @@ def list_galleries(token_payload, username):
 
     galleries = Gallery.query.filter_by(user_id=target_user.id)
 
-    if galleries is None:
+    if not galleries:
         return jsonify({'message': 'No galleries found.'}), 204
 
     output = []
@@ -377,7 +377,7 @@ def view_gallery_comment(token_payload, gallery_id):
 
     gallery_comments = GalleryComment.query.filter_by(gallery_id=gallery_id, g_comment_author=target_user, gallery_author=target_gallery)
 
-    if gallery_comments is None:
+    if not gallery_comments:
         return jsonify({'message': 'No comments found.'}), 204
 
     output = []
@@ -489,7 +489,7 @@ def view_gallery(token_payload, gallery_id):
 
     gallery_images = Image.query.filter_by(gallery_id=target_gallery.id).all()
 
-    if gallery_images is None:
+    if not gallery_images:
         return jsonify({'message': 'No images in gallery.'}), 204
 
     output = []
@@ -639,7 +639,7 @@ def view_image_comment(token_payload, image_id):
 
     image_comments = Comment.query.filter_by(image_id=image_id, comment_author=target_user, image_author=target_image)
 
-    if image_comments is None:
+    if not image_comments:
         return jsonify({'message': 'No comments found.'}), 204
 
     output = []
