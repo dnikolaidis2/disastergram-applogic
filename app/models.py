@@ -91,7 +91,7 @@ class Gallery(db.Model):
 class User(db.Model):
     id = db.Column(UUID(as_uuid=True), default=user_uuid, primary_key=True,  unique=True, index=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    auth_id = db.Column(db.String(120), unique=True, nullable=False)
+    auth_id = db.Column(db.String(200), unique=True, nullable=False)
     galleries = db.relationship('Gallery', backref='author', lazy='dynamic')
     images = db.relationship('Image', backref='image_author', lazy='dynamic')
     comments = db.relationship('Comment', backref='comment_author', lazy='dynamic')

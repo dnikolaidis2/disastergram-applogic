@@ -11,6 +11,27 @@ import uuid
 
 bp = Blueprint('app', __name__, url_prefix='/api')
 
+# Adds users to App-Logic Database if they don't already exist.
+def sync_user(user_id):
+    if User.query.filter(User.auth_id == str(user_id)).count() != 0:
+        return True
+
+    user_data = requests.get(auth_address + '/auth/user/' + str(user_id))
+
+    if user_data.status_code == 200:
+        abort(400)
+
+
+    if user_data is None:
+        return False
+
+    #new_user = User(auth_id=user_data['id'], username=user_data['username'])
+    new_user = User(username=user_data['username'], auth_id=user_data['id'])
+    db.session.add(new_user)
+    db.session.commit()
+
+    return True
+
 def check_token(pub_key):
     token = ''
     if request.method == 'GET':
@@ -78,7 +99,8 @@ def generate_user(payload):
 
         token = request.json.get('token')
 
-    user_data = requests.get(auth_address + '/auth/user/'+str(payload['sub'])+'?token='+str(token)).json()
+    #user_data = requests.get(auth_address + '/auth/user/'+str(payload['sub'])+'?token='+str(token)).json()
+    user_data = requests.get(auth_address + '/auth/user/' + str(payload['sub'])).json()
     if User.query.filter(User.auth_id == user_data['id']).count() != 0:
         return
     dup_user = User(username=user_data['username'], auth_id=user_data['id'])
@@ -103,29 +125,14 @@ def require_auth(pub_key="PUBLIC_KEY"):
     return decorator
 
 
-# Adds users to App-Logic Database if they don't already exist.
-def sync_user(username):
 
-    if User.query.filter(User.username == username).count() != 0:
-        return True
-
-    user_data = requests.get(auth_address + '/auth/user/' + str(username)).json()
-
-    if user_data is None:
-        return False
-
-    new_user = User(username=user_data['username'], auth_id=user_data['id'])
-    db.session.add(new_user)
-    db.session.commit()
-
-    return True
 
 # TESTING TESTING TESTING TESTING
-@bp.route('/test', methods=['GET'])
+@bp.route('/test/<user_id>', methods=['GET'])
 @require_auth()
-def test_pubkey(token_payload):
+def test_pubkey(token_payload, user_id):
     generate_user(token_payload)
-    return jsonify({'pubkey': auth_pubkey})
+    return jsonify(requests.get(auth_address + '/auth/user/' + str(user_id)).json())
 
 
 # Used for Testing Purposes.
@@ -144,24 +151,22 @@ def get_all_users():
     return jsonify({'users': output})
 
 # Can Follow Friends.
-@bp.route('/user/follow', methods=['POST'])
+@bp.route('/user/<user_id>/follow', methods=['POST'])
 @require_auth()
-def add_friend(token_payload):
+def add_friend(token_payload, user_id):
 
     generate_user(token_payload)  # If user is not in the database, add him.
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
-    username = request.json.get('username')  # Get username from JSON.
-
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
 
-    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
+    if not sync_user(user_id):  # Sync_user returns False if the User does not exist in Auth Database.
         abort(404, 'User not Found.')
 
-    user = User.query.filter_by(username=username).first()
+    user = User.query.filter_by(auth_id=user_id).first()
 
-    if user.username == logged_user.username:
+    if user.id == logged_user.id:
         abort(403, 'Cannot Follow Yourself.')
 
     if logged_user.is_following(user):
@@ -170,7 +175,7 @@ def add_friend(token_payload):
     logged_user.follow(user)
     db.session.commit()
 
-    return jsonify({'message': 'User '+str(username)+' added to your Friends.'}), 201
+    return jsonify({'message': 'User added to your Friends.'}), 201
 
 # Gets a list of users friends names and id's
 @bp.route('/user/friends', methods=['GET'])
@@ -199,24 +204,22 @@ def get_friends(token_payload):
     return jsonify({'Followed users': output}), 201
 
 # Unfollow a friend.
-@bp.route('/user/unfollow', methods=['DELETE'])
+@bp.route('/user/<user_id>/unfollow', methods=['DELETE'])
 @require_auth()
-def delete_friend(token_payload):
+def delete_friend(token_payload, user_id):
 
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
-    username = request.json.get('username')
-
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
 
-    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
+    if not sync_user(user_id):  # Sync_user returns False if the User does not exist in Auth Database.
         return jsonify({'message': 'User not found.'}), 404
 
-    user = User.query.filter_by(username=username).first()
+    user = User.query.filter_by(auth_id=user_id).first()
 
-    if user.username == logged_user.username:
+    if user.id == logged_user.id:
         abort(403, 'Cannot Unfollow Yourself.')
 
     if not logged_user.is_following(user):
@@ -236,6 +239,7 @@ def create_gallery(token_payload):
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
     galleryname = request.json['galleryname']
+
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
 
@@ -253,21 +257,21 @@ def create_gallery(token_payload):
 
 
 # GET a list of the user's galleries OR user's friends GALLERIES.
-@bp.route('/user/<username>/galleries', methods=['GET'])
+@bp.route('/user/<user_id>/galleries', methods=['GET'])
 @require_auth()
-def list_galleries(token_payload, username):
+def list_galleries(token_payload, user_id):
 
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
 
-    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
+    if not sync_user(user_id):  # Sync_user returns False if the User does not exist in Auth Database.
         abort(404, 'User not Found.')
 
-    target_user = User.query.filter_by(username=username).first()
+    target_user = User.query.filter_by(auth_id=user_id).first()
 
-    if logged_user.username != username:
+    if logged_user.id != target_user.id:
 
         if not target_user.is_following(logged_user):
             abort(401, 'User not Following you.')
@@ -453,7 +457,7 @@ def upload_image(token_payload):
     req_image.update_url(url)
     db.session.commit()
 
-    return jsonify ({'messge': 'Image Uploaded.'}), 200
+    return jsonify ({'message': 'Image Uploaded.'}), 200
 
 
 # View the Images of a Gallery.
