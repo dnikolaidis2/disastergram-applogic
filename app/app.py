@@ -217,7 +217,7 @@ def delete_friend(token_payload):
     user = User.query.filter_by(username=username).first()
 
     if user.username == logged_user.username:
-        abort(403, 'Cannot Follow Yourself.')
+        abort(403, 'Cannot Unfollow Yourself.')
 
     if not logged_user.is_following(user):
         return jsonify({'message': 'User already not followed.'})
@@ -225,7 +225,7 @@ def delete_friend(token_payload):
     logged_user.unfollow(user)
     db.session.commit()
 
-    return jsonify({'message': 'Friend Removed.'}), 204
+    return jsonify({'message': 'Friend Removed.'}), 200
 
 
 # Creates an empty gallery for the user.
@@ -297,15 +297,16 @@ def delete_gallery(token_payload):
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
-    gallery_id = request.json.get('gallery_id')
     if logged_user is None:
         abort(403, 'Logged in user does not exist.')
+
+    gallery_id = request.json.get('gallery_id')
 
     requested_gallery = Gallery.query.filter_by(id=gallery_id, author=logged_user).first()
     db.session.delete(requested_gallery)
     db.session.commit()
 
-    return jsonify({'message': 'Gallery Deleted.'})
+    return jsonify({'message': 'Gallery Deleted.'}), 200
 
 # Add comment to a gallery.
 @bp.route('/user/gallery/<gallery_id>/comment', methods=['POST'])
@@ -321,9 +322,6 @@ def post_gallery_comment(token_payload, gallery_id):
     if len(request.json['body']) > 1024:
         abort(413, 'Payload Too Large')
 
-    if len(request.json['body']) > 1024:
-        abort(413, 'Payload Too Large')
-
     if gallery_id is None:
         abort(400, 'Gallery id field is empty.')
 
@@ -334,19 +332,19 @@ def post_gallery_comment(token_payload, gallery_id):
 
     target_user = User.query.filter_by(id=target_gallery.user_id).first()
 
+    if target_user is None:
+        abort(404, 'Gallery owner not found.')
+
     if logged_user.id != target_user.id:
 
-        if target_user is None:
-            abort(404, 'Gallery owner not found.')
-
         if not target_user.is_following(logged_user):
-            abort(403, 'Access Forbidden. User is not Following you.')
+            abort(403, 'User is not Following you.')
 
     gallery_comment = GalleryComment(body=request.json['body'], g_comment_author=target_user, gallery_author=target_gallery)
     db.session.add(gallery_comment)
     db.session.commit()
 
-    return jsonify({'message': 'Submitted Comment.'})
+    return jsonify({'message': 'Submitted Comment.'}), 201
 
 
 # View Gallery Comments
@@ -378,7 +376,7 @@ def view_gallery_comment(token_payload, gallery_id):
     gallery_comments = GalleryComment.query.filter_by(gallery_id=gallery_id, g_comment_author=target_user, gallery_author=target_gallery)
 
     if not gallery_comments:
-        return jsonify({'message': 'No comments found.'}), 204
+        return jsonify({'message': 'No Comments Found.'}), 204
 
     output = []
 
@@ -389,7 +387,7 @@ def view_gallery_comment(token_payload, gallery_id):
         comment_data['body'] = comment.body
         output.append(comment_data)
 
-    return jsonify({'comments': output})
+    return jsonify({'comments': output}), 200
 
 # Upload an Image.
 @bp.route('/user/gallery/upload', methods=['POST'])
