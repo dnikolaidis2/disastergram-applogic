@@ -46,7 +46,7 @@ followers = db.Table('followers',
 class Comment(db.Model):
     id = db.Column(UUID(as_uuid=True), default=gallery_comment_uuid, primary_key=True,  unique=True, index=True)
     body = db.Column(db.String(1024), unique=False, nullable= False)
-    image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
+    image_id = db.Column(db.String, db.ForeignKey('image.id'))
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
 
     def __repr__(self):
@@ -68,7 +68,7 @@ class Image(db.Model):
     gallery_id = db.Column(UUID(as_uuid=True), db.ForeignKey('gallery.id'))
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
     imageurl = db.Column(db.String(100), unique = True, nullable = False)
-    comments = db.relationship('Comment', backref='author', lazy = 'dynamic')
+    comments = db.relationship('Comment', backref='image_author', lazy = 'dynamic')
 
     def update_url(self, url):
         self.imageurl = url

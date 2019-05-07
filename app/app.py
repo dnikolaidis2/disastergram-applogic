@@ -521,9 +521,6 @@ def post_image_comment(token_payload, image_id):
     if len(request.json['body']) > 1024:
         abort(413, 'Payload Too Large')
 
-    if len(request.json['body']) > 1024:
-        abort(413, 'Payload Too Large')
-
     if image_id is None:
         abort(400, 'Image id field is empty.')
 
@@ -548,6 +545,53 @@ def post_image_comment(token_payload, image_id):
 
     return jsonify({'message': 'Submitted Comment.'})
 
+# View Image Comments
+@bp.route('/user/image/<image_id>/comments', methods=['GET'])
+@require_auth()
+def view_gallery_comment(token_payload, image_id):
+
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
+
+    if image_id is None:
+        abort(400, 'Image id field is empty.')
+
+    if len(image_id) > 32:
+        abort(400, 'Payload Too Large.')
+
+    target_image = Image.query.filter_by(id=image_id).first()
+
+    if target_image is None:
+        abort(404, 'Image not Found.')
+
+    target_user = User.query.filter_by(id=target_image.user_id).first()
+
+    if target_user is None:
+        abort(404, 'Gallery owner not found.')
+
+    if logged_user.id != target_user.id:
+
+        if not target_user.is_following(logged_user):
+            abort(403, 'Access Forbidden. User is not Following you.')
+
+    image_comments = Comment.query.filter_by(image_id=image_id, comment_author=target_user, image_author=target_image)
+
+    if image_comments is None:
+        return jsonify({'message': 'No comments found.'}), 204
+
+    output = []
+
+    for comment in image_comments:
+        comment_data = {}
+        comment_data['user_id'] = comment.user_id
+        comment_data['id'] = comment.id
+        comment_data['body'] = comment.body
+        output.append(comment_data)
+
+    return jsonify({'comments': output})
 
 
 @bp.route('/pubkey')
