@@ -391,7 +391,7 @@ def view_gallery_comment(token_payload, gallery_id):
 
     return jsonify({'comments': output})
 
-
+# Upload an Image.
 @bp.route('/user/gallery/upload', methods=['POST'])
 @require_auth()
 def upload_image(token_payload):
@@ -426,14 +426,14 @@ def upload_image(token_payload):
     db.session.add(image)
     db.session.commit()
 
+    #  Once the image is committed and it's id is crafted then we request the image from the db.
     req_image = Image.query.filter_by(imageurl=temp_url, author=target_gallery)
 
-    payload = {
+    payload = {  # Short-lived Token for Safe App-logic and Storage service Communication
         'iss': 'app-logic',
         'sub': str(req_image.id),
         'exp': datetime.utcnow() + timedelta(minutes=15),  # 15 minute token,
-        'purpose': 'CREATE',
-        'nbf': datetime.utcnow()
+        'purpose': 'CREATE'
     }
 
     private_key = current_app.config.get('PRIVATE_KEY')
@@ -443,19 +443,19 @@ def upload_image(token_payload):
     token = jwt.encode(payload, private_key, algorithm='RS256')
 
     # TODO: Randomly selecting two active Storage Servers. Zookeeper?
-    # URL for testing.
-    url = 'http://'+storage_address+'/'+str(req_image.id)+'/'+str(token.decode('utf-8'))
+    # URL for sending the POST request to the proper storage server.
+    url = storage_address+'/'+str(req_image.id)+'/'+str(token.decode('utf-8'))
 
     files = {'file': ('image_id.jpg', file, 'image/jpeg')}
     response = requests.post(url, files=files)
 
-    if not response.status_code == 200 or response.status_code == 201:
+    if not (response.status_code == 200 or response.status_code == 201):
         abort(500, "Server error occurred while processing request")
 
     req_image.update_url(url)
     db.session.commit()
 
-    return 200
+    return jsonify ({'messge': 'Image Uploaded.'}), 200
 
 
 # View the Images of a Gallery.
@@ -479,10 +479,10 @@ def view_gallery(token_payload, gallery_id):
 
     target_user = User.query.filter_by(id=target_gallery.user_id).first()
 
-    if logged_user.id != target_user.id:
+    if target_user is None:
+        abort(404, 'Gallery owner not found.')
 
-        if target_user is None:
-            abort(404, 'Gallery owner not found.')
+    if logged_user.id != target_user.id:
 
         if not target_user.is_following(logged_user):
             abort(403, 'Access Forbidden. User is not Following you.')
@@ -500,12 +500,69 @@ def view_gallery(token_payload, gallery_id):
         image_data['image_url'] = image.imageurl
         output.append(image_data)
 
-    return jsonify({'gallery_images': output})
+    return jsonify({'gallery_images': output}), 200
 
-
+# Delete an Image.
 @bp.route('/user/image/<image_id>', methods=['DELETE'])
-def delete_image():
-    return ''
+@require_auth()
+def delete_image(token_payload, image_id):
+
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
+
+    if image_id is None:
+        abort(400, 'Gallery id field is empty.')
+
+    if len(image_id) > Image.id.property.columns[0].type.length:
+        abort(413, 'Payload Too Large')
+
+    target_image = Image.query.filter_by(id=image_id).first()
+
+    if target_image is None:
+        abort(404, 'Image not Found.')
+
+    if target_image.user_id != logged_user.id:  # Only Image owner has permission to delete.
+        abort(403, 'Permission Denied.')
+
+    payload = {  # Short-lived Token for Safe App-logic and Storage service Communication
+        'iss': 'app-logic',
+        'sub': str(target_image.id),
+        'exp': datetime.utcnow() + timedelta(minutes=15),  # 15 minute token,
+        'purpose': 'DELETE'
+    }
+
+    private_key = current_app.config.get('PRIVATE_KEY')
+    if private_key is None:
+        abort(500, "Server error occurred while processing request")
+
+    token = jwt.encode(payload, private_key, algorithm='RS256')
+
+    # URL to send image to Storage Server.
+    url = storage_address+'/'+str(target_image.id)+'/'+str(token.decode('utf-8'))
+
+    response = requests.delete(url)
+
+    # TODO : Confirm the Responses with Dimitri
+
+    if not (response.status_code == 200 or response.status_code == 204):
+        abort(500, "Server error occurred while processing request")
+
+    # TODO : IF AND ONLY IF IT WAS DELETED FROM STORAGE, THEN DELETE FROM APP-LOGIC DB.
+    # Delete Image Comments first.
+    image_comments = Comment.query.filter_by(image_id=target_image.id).all()
+
+    if not (image_comments is None):
+
+        db.session.delete(image_comments)
+        db.session.commit()
+
+    db.session.delete(target_image)
+    db.session.commit()
+
+    return jsonify({'message': 'Image successfully deleted.'}), 200
 
 # Add comment to a image.
 @bp.route('/user/image/<image_id>/comment', methods=['POST'])
@@ -518,7 +575,10 @@ def post_image_comment(token_payload, image_id):
     if logged_user is None:
         abort(403, 'Logged in user does not exist.')
 
-    if len(request.json['body']) > 1024:
+    if request.json['body'] is None:
+        abort(400, 'body field is empty.')
+
+    if len(request.json['body']) > Comment.body.property.columns[0].type.length:
         abort(413, 'Payload Too Large')
 
     if image_id is None:
@@ -531,10 +591,10 @@ def post_image_comment(token_payload, image_id):
 
     target_user = User.query.filter_by(id=target_image.user_id).first()
 
-    if logged_user.id != target_user.id:
+    if target_user is None:
+        abort(404, 'Gallery owner not found.')
 
-        if target_user is None:
-            abort(404, 'Gallery owner not found.')
+    if logged_user.id != target_user.id:
 
         if not target_user.is_following(logged_user):
             abort(403, 'Access Forbidden. User is not Following you.')
@@ -548,7 +608,7 @@ def post_image_comment(token_payload, image_id):
 # View Image Comments
 @bp.route('/user/image/<image_id>/comments', methods=['GET'])
 @require_auth()
-def view_gallery_comment(token_payload, image_id):
+def view_image_comment(token_payload, image_id):
 
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
