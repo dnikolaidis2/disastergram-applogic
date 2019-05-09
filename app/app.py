@@ -84,22 +84,23 @@ def check_token(pub_key):
 def generate_user(payload):
     token = ''
     if request.method == 'GET':
-        # check if token was sent with request
+        #check if token was sent with request
         if request.args == {}:
             abort(400, 'Token is not part of request')
 
-        # check if token is not empty
+        #check if token is not empty
         token = request.args.get('token')
         if token is None:
             abort(400, 'Token field is empty')
     else:
-        # check json data
+         #check json data
         if request.json.get('token') is None:
             abort(400, 'Token is not part of request form')
 
         token = request.json.get('token')
 
     #user_data = requests.get(auth_address + '/auth/user/'+str(payload['sub'])+'?token='+str(token)).json()
+
     user_data = requests.get(auth_address + '/auth/user/' + str(payload['sub'])).json()
     if User.query.filter(User.auth_id == user_data['id']).count() != 0:
         return
@@ -161,7 +162,7 @@ def add_friend(token_payload, user_id):
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
 
-    if user_id is None:
+    if not user_id:
         abort(400, 'user_id field is empty')
 
     if not sync_user(user_id):  # Sync_user returns False if the User does not exist in Auth Database.
@@ -217,6 +218,9 @@ def delete_friend(token_payload, user_id):
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
 
+    if not user_id:
+        abort(400, 'user_id field is empty')
+
     if not sync_user(user_id):  # Sync_user returns False if the User does not exist in Auth Database.
         return jsonify({'message': 'User not found.'}), 404
 
@@ -269,6 +273,9 @@ def list_galleries(token_payload, user_id):
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
+
+    if not user_id:
+        abort(400, 'user_id field is empty')
 
     if not sync_user(user_id):  # Sync_user returns False if the User does not exist in Auth Database.
         abort(404, 'User not Found.')
@@ -330,6 +337,9 @@ def post_gallery_comment(token_payload, gallery_id):
     if logged_user is None:
         abort(403, 'Logged in user does not exist.')
 
+    if not request.json['body']:
+        abort(400, 'body field is empty.')
+
     if len(request.json['body']) > 1024:
         abort(413, 'Payload Too Large')
 
@@ -369,6 +379,9 @@ def view_gallery_comment(token_payload, gallery_id):
     if logged_user is None:
         abort(403, 'Logged in user does not exist.')
 
+    if not gallery_id:
+        abort(400, 'Gallery id field is empty.')
+
     target_gallery = Gallery.query.filter_by(id=gallery_id).first()
 
     if not target_gallery:
@@ -376,10 +389,10 @@ def view_gallery_comment(token_payload, gallery_id):
 
     target_user = User.query.filter_by(id=target_gallery.user_id).first()
 
-    if logged_user.id != target_user.id:
+    if target_user is None:
+        abort(404, 'Gallery owner not found.')
 
-        if target_user is None:
-            abort(404, 'Gallery owner not found.')
+    if logged_user.id != target_user.id:
 
         if not target_user.is_following(logged_user):
             abort(403, 'Access Forbidden. User is not Following you.')
