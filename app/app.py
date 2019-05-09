@@ -161,6 +161,9 @@ def add_friend(token_payload, user_id):
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
 
+    if user_id is None:
+        abort(400, 'user_id field is empty')
+
     if not sync_user(user_id):  # Sync_user returns False if the User does not exist in Auth Database.
         abort(404, 'User not Found.')
 
@@ -238,12 +241,13 @@ def create_gallery(token_payload):
 
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
-    galleryname = request.json['galleryname']
 
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
 
-    if galleryname is None:
+    galleryname = request.json['galleryname']
+
+    if not galleryname:
         abort(400, 'Gallery Name field is empty.')
 
     if Gallery.query.filter_by(galleryname=galleryname, author=logged_user) is None:
@@ -306,6 +310,9 @@ def delete_gallery(token_payload):
 
     gallery_id = request.json.get('gallery_id')
 
+    if not gallery_id:
+        abort(403, 'gallery_id field is empty.')
+
     requested_gallery = Gallery.query.filter_by(id=gallery_id, author=logged_user).first()
     db.session.delete(requested_gallery)
     db.session.commit()
@@ -326,17 +333,17 @@ def post_gallery_comment(token_payload, gallery_id):
     if len(request.json['body']) > 1024:
         abort(413, 'Payload Too Large')
 
-    if gallery_id is None:
+    if not gallery_id :
         abort(400, 'Gallery id field is empty.')
 
     target_gallery = Gallery.query.filter_by(id=gallery_id).first()
 
-    if target_gallery is None:
+    if not target_gallery:
         abort(404, 'Gallery not Found.')
 
     target_user = User.query.filter_by(id=target_gallery.user_id).first()
 
-    if target_user is None:
+    if not target_user :
         abort(404, 'Gallery owner not found.')
 
     if logged_user.id != target_user.id:
@@ -364,7 +371,7 @@ def view_gallery_comment(token_payload, gallery_id):
 
     target_gallery = Gallery.query.filter_by(id=gallery_id).first()
 
-    if target_gallery is None:
+    if not target_gallery:
         abort(404, 'Gallery not Found.')
 
     target_user = User.query.filter_by(id=target_gallery.user_id).first()
@@ -621,7 +628,7 @@ def view_image_comment(token_payload, image_id):
     if image_id is None:
         abort(400, 'Image id field is empty.')
 
-    if len(image_id) > 32:
+    if len(image_id) > Image.id.property.columns[0].type.length:
         abort(400, 'Payload Too Large.')
 
     target_image = Image.query.filter_by(id=image_id).first()

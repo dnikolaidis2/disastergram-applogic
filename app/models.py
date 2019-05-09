@@ -64,7 +64,7 @@ class GalleryComment(db.Model):
 
 
 class Image(db.Model):
-    id = db.Column(db.String, primary_key=True,  unique=True, index=True)
+    id = db.Column(db.String(32), primary_key=True,  unique=True, index=True)
     gallery_id = db.Column(UUID(as_uuid=True), db.ForeignKey('gallery.id'))
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
     imageurl = db.Column(db.String(100), unique = True, nullable = False)
