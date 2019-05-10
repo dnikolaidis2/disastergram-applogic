@@ -36,7 +36,6 @@ def sync_user(username):
 
     user_data = requests.get(auth_address + '/auth/user/' + str(username)).json()
 
-
     if not user_data:
         return False
 
@@ -172,15 +171,19 @@ def get_all_users():
     return jsonify({'users': output})
 
 # Can Follow Friends.
-@bp.route('/user/<username>/follow', methods=['POST'])
+@bp.route('/user/follow', methods=['POST'])
 @require_auth()
-def add_friend(token_payload, username):
+def add_friend(token_payload):
 
     generate_user(token_payload)  # If user is not in the database, add him.
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
+
+
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
+
+    username = request.json.get('username')
 
     if not username:
         abort(400, 'username field is empty')
@@ -228,15 +231,17 @@ def get_friends(token_payload):
     return jsonify({'Followed users': output}), 201
 
 # Unfollow a friend.
-@bp.route('/user/<username>/unfollow', methods=['DELETE'])
+@bp.route('/user/unfollow', methods=['DELETE'])
 @require_auth()
-def delete_friend(token_payload, username):
+def delete_friend(token_payload):
 
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
+
+    username = request.json.get('username')
 
     if not username:
         abort(400, 'username field is empty')
