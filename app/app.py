@@ -327,6 +327,45 @@ def list_galleries(token_payload, username):
 
     return jsonify({'Galleries': output}), 201
 
+# Get a gallery based on id.
+@bp.route('/user/gallery/<gallery_id>', methods=['GET'])
+@require_auth()
+def get_gallery(token_payload, gallery_id):
+
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+    if logged_user is None:
+        abort(403, 'Request Blocked. User Token not Valid.')
+
+    if not gallery_id:
+        abort(400, 'user_id field is empty')
+
+    target_gallery = Gallery.query.filter_by(id=gallery_id).first()
+
+    if not target_gallery:
+        abort(404, 'Gallery not found.')
+
+    target_owner = User.query.filter_by(id=target_gallery.user_id).first()
+
+    if not target_owner:
+        abort(404, 'Gallery Owner not found.')
+
+    if logged_user.id != target_owner.id:
+
+        if not target_owner.is_following(logged_user):
+            abort(401, 'User not Following you.')
+
+    output = []
+
+    gallery_data = {}
+    gallery_data['galleryname'] = target_gallery.galleryname
+    gallery_data['username'] = target_owner.username
+    gallery_data['user_id'] = target_owner.id
+    output.append(gallery_data)
+
+    return jsonify({'Gallery': output}), 201
+
+
 
 # Deletes gallery from the user.
 @bp.route('/user/gallery/<gallery_id>', methods=['DELETE'])
