@@ -178,8 +178,6 @@ def add_friend(token_payload):
     generate_user(token_payload)  # If user is not in the database, add him.
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
 
-
-
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
 
