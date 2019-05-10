@@ -7,7 +7,7 @@ import string
 import random
 
 def random_generator():
-    return ''.join([random.choice(string.ascii_letters + string.digits) for n in range(32)])
+    return ''.join([random.choice(string.ascii_letters + string.digits) for n in range(12)])
 
 
 def user_uuid():
@@ -64,17 +64,17 @@ class GalleryComment(db.Model):
 
 
 class Image(db.Model):
-    id = db.Column(db.String(32), primary_key=True,  unique=True, index=True)
+    id = db.Column(db.String(12), primary_key=True,  unique=True, index=True)
     gallery_id = db.Column(UUID(as_uuid=True), db.ForeignKey('gallery.id'))
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
-    imageurl = db.Column(db.String(100), unique = True, nullable = False)
-    comments = db.relationship('Comment', backref='image_author', lazy = 'dynamic')
+    #imageurl = db.Column(db.String(100), unique = True, nullable = False)
+    comments = db.relationship('Comment', cascade="all, delete-orphan", backref='image_author', lazy = 'dynamic')
 
-    def update_url(self, url):
-        self.imageurl = url
+    #def update_url(self, url):
+        #self.imageurl = url
 
     def __repr__(self):
-        return '<Image %r>' % self.imageurl
+        return '<Image %r>' % self.id
 
 
 class Gallery(db.Model):
@@ -82,7 +82,7 @@ class Gallery(db.Model):
     galleryname = db.Column(db.String(80), unique = False, nullable= False)
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
     images = db.relationship('Image', backref='author', lazy='dynamic')
-    comments = db.relationship('GalleryComment', backref='gallery_author', lazy='dynamic')
+    comments = db.relationship('GalleryComment', cascade="all, delete-orphan", backref='gallery_author', lazy='dynamic')
 
     def __repr__(self):
         return '<Gallery %r>' % self.galleryname

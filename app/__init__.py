@@ -1,30 +1,19 @@
-from flask import Flask
+from flask import Flask, current_app, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from os import environ, path
 import requests
 
-#from kazoo import client as kz_client
+# from kazoo import client as kz_client
 
 db = SQLAlchemy()
 ma = Marshmallow()
 
-auth_address = 'http://auth:5000'
-#auth_address = 'http://disastergram.nikolaidis.tech'
-storage_address = 'http://foo'
-#auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
+# auth_address = 'http://auth:5000'
+auth_address = 'http://disastergram.nikolaidis.tech'
+storage_address = 'http://foo/'
+# auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
 auth_pubkey = None
-
-#auth_pubkey = None
-
-#my_client = kz_client.KazooClient(hosts='127.0.0.1:2181')
-
-#def my_listener(state):
-#    if state == kz_client.KazooState.CONNECTED:
-#        print("Client connected !")
-
-#my_client.add_listener(my_listener)
-#my_client.start(timeout=5)
 
 
 def create_app(test_config=None):
@@ -61,7 +50,6 @@ def create_app(test_config=None):
     if flask_env == 'development':
         from app import models
         models.init_db(myapp)
-
 
     from app import app
 
