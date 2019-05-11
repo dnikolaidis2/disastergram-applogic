@@ -69,10 +69,14 @@ def check_token(pub_key):
             abort(400, 'Token field is empty')
     else:
         # check json data
-        if request.json.get('token') is None:
-            abort(400, 'Token is not part of request form')
-
-        token = request.json.get('token')
+        if request.files:
+            if request.files['token'] is None:
+                abort(400, 'Token is not part of request form')
+            token = request.files['token']
+        else:
+            if request.json.get('token') is None:
+                abort(400, 'Token is not part of request form')
+            token = request.json.get('token')
 
     if pub_key is None:
         abort(500, "Server error occurred while processing request")
@@ -107,21 +111,21 @@ def check_token(pub_key):
 # This function will be used to check incoming users and add them to the applogic database if they don't already exist.
 def generate_user(payload):
     token = ''
-    if request.method == 'GET':
+#    if request.method == 'GET':
         #check if token was sent with request
-        if request.args == {}:
-            abort(400, 'Token is not part of request')
+#        if request.args == {}:
+#            abort(400, 'Token is not part of request')
 
         #check if token is not empty
-        token = request.args.get('token')
-        if token is None:
-            abort(400, 'Token field is empty')
-    else:
-         #check json data
-        if request.json.get('token') is None:
-            abort(400, 'Token is not part of request form')
-
-        token = request.json.get('token')
+#        token = request.args.get('token')
+#        if token is None:
+#            abort(400, 'Token field is empty')
+#    else:
+#         check json data
+#        if request.json.get('token') is None:
+#            abort(400, 'Token is not part of request form')
+#
+#        token = request.json.get('token')
 
     #user_data = requests.get(auth_address + '/auth/user/'+str(payload['sub'])+'?token='+str(token)).json()
     user_data = requests.get(auth_address + '/auth/user/' + str(payload['sub'])).json()
