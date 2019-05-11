@@ -114,6 +114,9 @@ class User(db.Model):
         return self.followed.filter(
             followers.c.followed_id == user.id).count() > 0
 
+    def update_auth_id(self, auth_id):
+        self.auth_id = auth_id
+
     def __repr__(self):
         return '<User %r>' % self.username
 

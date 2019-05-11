@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID
 import requests
 import jwt
 import uuid
+import os
 
 
 bp = Blueprint('app', __name__, url_prefix='/api')
@@ -38,6 +39,15 @@ def sync_user(username):
 
     if not user_data:
         return False
+
+    dup_user = User.query.filter_by(username=user_data['username']).first()
+
+    if dup_user:
+        if dup_user.auth_id != user_data['id']:
+            dup_user.update_auth_id(str(user_data['id']))
+            db.session.commit()
+            return True
+    return True
 
     new_user = User(username=user_data['username'], auth_id=user_data['id'])
     db.session.add(new_user)
@@ -186,10 +196,13 @@ def add_friend(token_payload):
     if not username:
         abort(400, 'username field is empty')
 
-    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
+    if not sync_user(str(username)):  # Sync_user returns False if the User does not exist in Auth Database.
         abort(404, 'User {} not Found.'.format(repr(username)))
 
     user = User.query.filter_by(username=username).first()
+
+    if not user:
+        abort(404, 'User {} not Found.'.format(repr(username)))
 
     if user.id == logged_user.id:
         abort(403, 'Cannot Follow Yourself.')
@@ -249,6 +262,9 @@ def delete_friend(token_payload):
 
     user = User.query.filter_by(username=username).first()
 
+    if not user:
+        abort(404, 'User {} not Found.'.format(repr(username)))
+
     if user.id == logged_user.id:
         abort(403, 'Cannot Unfollow Yourself.')
 
@@ -298,12 +314,15 @@ def list_galleries(token_payload, username):
         abort(403, 'Request Blocked. User Token not Valid.')
 
     if not username:
-        abort(400, 'user_id field is empty')
+        abort(400, 'username field is empty')
 
-    if not sync_user(username):  # Sync_user returns False if the User does not exist in Auth Database.
+    if sync_user(username) == False:  # Sync_user returns False if the User does not exist in Auth Database.
         abort(404, 'User {} not Found.'.format(repr(username)))
 
     target_user = User.query.filter_by(username=username).first()
+
+    if not target_user:
+        abort(404, 'User {} not Found.'.format(repr(username)))
 
     if logged_user.id != target_user.id:
 
@@ -336,7 +355,7 @@ def get_gallery(token_payload, gallery_id):
         abort(403, 'Request Blocked. User Token not Valid.')
 
     if not gallery_id:
-        abort(400, 'user_id field is empty')
+        abort(400, 'gallery_id field is empty')
 
     target_gallery = Gallery.query.filter_by(id=gallery_id).first()
 
@@ -364,7 +383,6 @@ def get_gallery(token_payload, gallery_id):
     return jsonify({'Gallery': output}), 201
 
 
-
 # Deletes gallery from the user.
 @bp.route('/user/gallery/<gallery_id>', methods=['DELETE'])
 @require_auth()
@@ -377,7 +395,7 @@ def delete_gallery(token_payload, gallery_id):
         abort(403, 'Logged in user does not exist.')
 
     if not gallery_id:
-        abort(403, 'gallery_id field is empty.')
+        abort(400, 'gallery_id field is empty.')
 
     requested_gallery = Gallery.query.filter_by(id=gallery_id, author=logged_user).first()
 
@@ -522,7 +540,7 @@ def upload_image(token_payload, gallery_id):
     file_extension = filename.rsplit('.', 1)[1].lower()
     image_id = random_generator()
 
-    response = gen_storage().upload_image(image_id,'{}.{}'.format(image_id, file_extension),file, file.mimetype)
+    response = gen_storage().upload_image(image_id,'{}.{}'.format(image_id, file_extension),file, 'image/jpeg')
 
     if not (response.status_code == 201):
         abort(500, "Server error occurred while processing request")
@@ -536,7 +554,7 @@ def upload_image(token_payload, gallery_id):
 
 
 # View the Images of a Gallery.
-@bp.route('/user/gallery/<gallery_id>', methods=['GET'])
+@bp.route('/user/gallery/<gallery_id>/images', methods=['GET'])
 @require_auth()
 def view_gallery(token_payload, gallery_id):
     generate_user(token_payload)

@@ -11,7 +11,7 @@ ma = Marshmallow()
 
 auth_address = 'http://auth:5000'
 #auth_address = 'http://disastergram.nikolaidis.tech'
-storage_address = 'http://foo/'
+storage_address = 'http://storage/1/'
 # auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
 auth_pubkey = None
 
