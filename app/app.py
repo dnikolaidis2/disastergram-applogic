@@ -69,12 +69,12 @@ def check_token(pub_key):
             abort(400, 'Token field is empty')
     else:
         # check json data
-        if request.files:
-            if request.files['token'] is None:
+        if request.content_type == 'multipart/form-data':
+            if not request.files['token']:
                 abort(400, 'Token is not part of request form')
             token = request.files['token']
         else:
-            if request.json.get('token') is None:
+            if not request.json.get('token'):
                 abort(400, 'Token is not part of request form')
             token = request.json.get('token')
 
@@ -518,12 +518,12 @@ def upload_image(token_payload, gallery_id):
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
 
-    if gallery_id is None:
+    if not gallery_id:
         abort(400, 'Gallery id field is empty.')
 
     target_gallery = Gallery.query.filter_by(id=gallery_id, author=logged_user)
 
-    if target_gallery is None:
+    if not target_gallery:
         abort(404, 'Gallery not Found.')
 
     if 'file' not in request.files:
