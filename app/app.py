@@ -157,9 +157,6 @@ def require_auth(pub_key="PUBLIC_KEY"):
 @bp.route('/test', methods=['GET'])
 def test_pubkey():
 
-    image = Image(store_id=random_generator(), author=target_gallery, image_author=logged_user)
-    db.session.add(image)
-    db.session.commit()
     return jsonify({'test': 'Created'}), 201
 
 
