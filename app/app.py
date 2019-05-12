@@ -640,8 +640,8 @@ def view_gallery(token_payload, gallery_id):
 
     for image in gallery_images:
         image_data = {}
-        image_data['image_id'] = image.id
-        image_data['image_url'] = gen_storage().gen_image_url(image.id)
+        image_data['image_id'] = image.store_id
+        image_data['image_url'] = gen_storage().gen_image_url(image.store_id)
         output.append(image_data)
 
     return jsonify({'gallery_images': output}), 201
@@ -660,10 +660,10 @@ def delete_image(token_payload, image_id):
     if not image_id:
         abort(400, 'Gallery id field is empty.')
 
-    if len(image_id) > Image.id.property.columns[0].type.length:
+    if len(image_id) > Image.store_id.property.columns[0].type.length:
         abort(413, 'Payload Too Large')
 
-    target_image = Image.query.filter_by(id=image_id).first()
+    target_image = Image.query.filter_by(store_id=image_id).first()
 
     if not target_image:
         abort(404, 'Image not Found.')
@@ -671,17 +671,10 @@ def delete_image(token_payload, image_id):
     if target_image.user_id != logged_user.id:  # Only Image owner has permission to delete.
         abort(403, 'Permission Denied.')
 
-    response = gen_storage().delete_image(target_image.id)
+    response = gen_storage().delete_image(target_image.store_id)
 
     if not (response.status_code == 200):
         abort(500, "Server error occurred while processing request")
-
-    # Delete Image Comments first.
-    image_comments = Comment.query.filter_by(image_id=target_image.id).all()
-
-    if image_comments:  # Delete Image Comments if they exist.
-        db.session.delete(image_comments)
-        db.session.commit()
 
     db.session.delete(target_image)
     db.session.commit()
