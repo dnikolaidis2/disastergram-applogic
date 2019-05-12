@@ -117,6 +117,11 @@ class User(db.Model):
     def update_auth_id(self, auth_id):
         self.auth_id = auth_id
 
+    def followers_galleries(self):
+        return Gallery.query.join(
+            followers, (followers.c.follower_id == Gallery.user_id)).filter(
+                followers.c.followed_id == self.id)
+
     def __repr__(self):
         return '<User %r>' % self.username
 

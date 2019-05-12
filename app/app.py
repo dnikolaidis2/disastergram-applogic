@@ -69,7 +69,7 @@ def check_token(pub_key):
             abort(400, 'Token field is empty')
     else:
         # check json data
-        if request.content_type == 'multipart/form-data':
+        if request.mimetype == 'multipart/form-data':
             if request.args == {}:
                 abort(400, 'Token is not part of request form')
             token = request.args.get('token')
@@ -151,8 +151,6 @@ def require_auth(pub_key="PUBLIC_KEY"):
 
         return wrapped
     return decorator
-
-
 
 
 # TESTING TESTING TESTING TESTING
@@ -333,10 +331,35 @@ def create_gallery(token_payload):
     return jsonify({'message': 'Gallery Created.'}), 201
 
 
+# GET a list of all the Galleries you have access.
+@bp.route('/user/galleries', methods=['GET'])
+@require_auth()
+def list_galleries(token_payload):
+
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+    if logged_user is None:
+        abort(403, 'Request Blocked. User Token not Valid.')
+
+    galleries = logged_user.followers_galleries()
+
+    if not galleries:
+        return jsonify({'message': 'No galleries found.'}), 204
+
+    output = []
+
+    for gallery in galleries:
+        gallery_data = {}
+        gallery_data['galleryname'] = gallery.galleryname
+        gallery_data['id'] = gallery.id
+        output.append(gallery_data)
+
+    return jsonify({'Galleries': output}), 201
+
 # GET a list of the user's galleries OR user's friends GALLERIES.
 @bp.route('/user/<username>/galleries', methods=['GET'])
 @require_auth()
-def list_galleries(token_payload, username):
+def list_user_galleries(token_payload, username):
 
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
