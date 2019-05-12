@@ -337,7 +337,7 @@ def list_galleries(token_payload):
     if logged_user is None:
         abort(403, 'Request Blocked. User Token not Valid.')
 
-    galleries = logged_user.followers_galleries()
+    galleries = logged_user.followers_galleries().all()
 
     if not galleries:
         return jsonify({'message': 'No galleries found.'}), 204
