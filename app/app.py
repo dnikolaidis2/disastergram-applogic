@@ -70,9 +70,9 @@ def check_token(pub_key):
     else:
         # check json data
         if request.content_type == 'multipart/form-data':
-            if not request.files['token']:
+            if request.args == {}:
                 abort(400, 'Token is not part of request form')
-            token = request.files['token']
+            token = request.args.get('token')
         else:
             if not request.json.get('token'):
                 abort(400, 'Token is not part of request form')
