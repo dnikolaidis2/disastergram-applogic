@@ -46,7 +46,7 @@ followers = db.Table('followers',
 class Comment(db.Model):
     id = db.Column(UUID(as_uuid=True), default=gallery_comment_uuid, primary_key=True,  unique=True, index=True)
     body = db.Column(db.String(1024), unique=False, nullable= False)
-    image_id = db.Column(db.String, db.ForeignKey('image.id'))
+    image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
 
     def __repr__(self):
@@ -64,10 +64,10 @@ class GalleryComment(db.Model):
 
 
 class Image(db.Model):
-    id = db.Column(db.String(12), primary_key=True,  unique=True, index=True)
+    id = db.Column(db.Integer, primary_key=True,  unique=True, index=True)
+    store_id = db.Column(db.String(12),  unique=True, nullable=False)
     gallery_id = db.Column(UUID(as_uuid=True), db.ForeignKey('gallery.id'))
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
-    #imageurl = db.Column(db.String(100), unique = True, nullable = False)
     comments = db.relationship('Comment', cascade="all, delete-orphan", backref='image_author', lazy = 'dynamic')
 
     #def update_url(self, url):
@@ -83,6 +83,7 @@ class Gallery(db.Model):
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
     images = db.relationship('Image', backref='author', lazy='dynamic')
     comments = db.relationship('GalleryComment', cascade="all, delete-orphan", backref='gallery_author', lazy='dynamic')
+
 
     def __repr__(self):
         return '<Gallery %r>' % self.galleryname

@@ -156,15 +156,11 @@ def require_auth(pub_key="PUBLIC_KEY"):
 # TESTING TESTING TESTING TESTING
 @bp.route('/test', methods=['GET'])
 def test_pubkey():
-    comments = GalleryComment.query.all()
-    output = []
 
-    for comment in comments:
-        comment_data = {}
-        comment_data['id'] = comment.id
-        comment_data['body'] = comment.body
-        output.append(comment_data)
-    return jsonify({'users': output})
+    image = Image(store_id=random_generator(), author=target_gallery, image_author=logged_user)
+    db.session.add(image)
+    db.session.commit()
+    return jsonify({'test': 'Created'}), 201
 
 
 # Used for Testing Purposes.
@@ -571,7 +567,7 @@ def upload_image(token_payload, gallery_id):
     if not gallery_id:
         abort(400, 'Gallery id field is empty.')
 
-    target_gallery = Gallery.query.filter_by(id=gallery_id, author=logged_user)
+    target_gallery = Gallery.query.filter_by(id=gallery_id).first()
 
     if not target_gallery:
         abort(404, 'Gallery not Found.')
@@ -600,7 +596,7 @@ def upload_image(token_payload, gallery_id):
         abort(500, "Server error occurred while processing request")
 
     # Adds Image in the Database.
-    image = Image(id=image_id, author=target_gallery, image_author=logged_user)
+    image = Image(store_id=image_id, author=target_gallery, image_author=logged_user)
     db.session.add(image)
     db.session.commit()
 
