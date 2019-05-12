@@ -219,10 +219,10 @@ def add_friend(token_payload):
 
     return jsonify({'message': 'User added to your Friends.'}), 201
 
-# Gets a list of users friends names and id's
-@bp.route('/user/friends', methods=['GET'])
+# List of users that the user is following.
+@bp.route('/user/following', methods=['GET'])
 @require_auth()
-def get_friends(token_payload):
+def get_following(token_payload):
 
     generate_user(token_payload)
     logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
@@ -231,6 +231,32 @@ def get_friends(token_payload):
         abort(403, 'Request Blocked. User Token not Valid.')
 
     users = logged_user.followed.all()
+
+    if not users:
+
+        return jsonify({'message': 'No friends found.'}), 204
+
+    output = []
+
+    for user in users:
+        user_data = {}
+        user_data['id'] = user.id
+        user_data['username'] = user.username
+        output.append(user_data)
+    return jsonify({'Followed users': output}), 201
+
+# List of users that follow the user.
+@bp.route('/user/followers', methods=['GET'])
+@require_auth()
+def get_followed(token_payload):
+
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    if logged_user is None:   # Probably not necessary.
+        abort(403, 'Request Blocked. User Token not Valid.')
+
+    users = logged_user.followers.all()
 
     if not users:
 
