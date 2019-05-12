@@ -352,6 +352,7 @@ def list_galleries(token_payload):
         gallery_data = {}
         gallery_data['galleryname'] = gallery.galleryname
         gallery_data['id'] = gallery.id
+        gallery_data['username'] = User.query.filter_by(id=gallery.user_id).first().username
         output.append(gallery_data)
 
     return jsonify({'Galleries': output}), 201
@@ -599,7 +600,7 @@ def upload_image(token_payload, gallery_id):
         abort(500, "Server error occurred while processing request")
 
     # Adds Image in the Database.
-    image = Image(id=image_id, author=target_gallery)
+    image = Image(id=image_id, author=target_gallery, image_author=logged_user)
     db.session.add(image)
     db.session.commit()
 
@@ -784,6 +785,7 @@ def view_image_comment(token_payload, image_id):
 @bp.route('/pubkey')
 def pub_key():
     public_key = current_app.config.get('PUBLIC_KEY')
+
     if public_key is None:
         abort(500, "Server error occurred while processing request")
 
