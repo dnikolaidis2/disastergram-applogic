@@ -3,7 +3,6 @@ from kazoo.exceptions import NodeExistsError, ZookeeperError
 
 import json
 
-
 class AppZoo:
 
     def __init__(self, client, znode_data):
@@ -39,4 +38,26 @@ class AppZoo:
             # other error occurred
             self._client.logger.info('Server error while creating znode')
 
+        # check if we are trying to create multiple instances
+        # of our ephemeral node
+        if self._znode_path is not None:
+            if self._client.exists(self._znode_path) is not None:
+                return
 
+        # create auth sequence znode for this worker
+        try:
+            self._znode_path = self._client.create('/auth/', ephemeral=True, sequence=True)
+        except NodeExistsError:
+            # NOTE: this should be imposible. Maybe remove catch
+            self._client.logger.info('Sequence znode already exists?')
+            self._znode_path = None
+        except ZookeeperError:
+            # other error occurred
+            self._client.logger.info('Server error while creating znode')
+            self._znode_path = None
+
+    def get_znode(self):
+        try:
+            return self._client.exists("/auth")
+        except ZookeeperError:
+            return None
