@@ -587,7 +587,7 @@ def upload_image(token_payload, gallery_id):
     file_extension = filename.rsplit('.', 1)[-1].lower()
     image_id = random_generator()
 
-    response = gen_storage().upload_image(image_id,'{}.{}'.format(image_id, file_extension), file, 'image/jpeg')
+    response = gen_storage().upload_image(image_id,'{}.{}'.format(image_id, file_extension), file, file.mimetype)
 
     if not (response.status_code == 201):
         abort(500, "Server error occurred while processing request")
