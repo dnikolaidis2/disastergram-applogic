@@ -4,6 +4,7 @@ from kazoo.exceptions import NodeExistsError, ZookeeperError
 import json
 
 class AppZoo:
+    _znode_path = None
 
     def __init__(self, client, znode_data):
         self._client = client
@@ -27,10 +28,8 @@ class AppZoo:
 
     def create_znodes(self):
         # TODO: maybe wrap create with proper try except handling instead of duplicating code
-        # create auth znode if it does not exist
-        self._client.ensure_path("/app-logic")
         try:
-            self._client.create('/app-logic/app', json.dumps(self._znode_data).encode())
+            self._client.create('/app', json.dumps(self._znode_data).encode())
         except NodeExistsError:
             # one of our brother workers has done this already
             self._client.logger.info('app znode already exists')
@@ -46,9 +45,9 @@ class AppZoo:
 
         # create auth sequence znode for this worker
         try:
-            self._znode_path = self._client.create('/auth/', ephemeral=True, sequence=True)
+            self._znode_path = self._client.create('/app/', ephemeral=True, sequence=True)
         except NodeExistsError:
-            # NOTE: this should be imposible. Maybe remove catch
+            # NOTE: this should be imposible. Maybe remove catch?
             self._client.logger.info('Sequence znode already exists?')
             self._znode_path = None
         except ZookeeperError:

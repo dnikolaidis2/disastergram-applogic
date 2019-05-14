@@ -13,7 +13,7 @@ ma = Marshmallow()
 
 auth_address = 'http://auth:80'
 #auth_address = 'http://disastergram.nikolaidis.tech'
-storage_address = 'http://disastergram.network/storage/1/'
+storage_address = 'http://localhost/storage/1/'
 storage_docker_address = 'http://storage_1:80/'
 # auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
 auth_pubkey = None
@@ -21,11 +21,14 @@ zk = None
 
 def create_app(test_config=None):
     # create the app configuration
-    myapp = Flask(__name__,
+    app = Flask(__name__,
                   instance_path=environ.get('FLASK_APP_INSTANCE', '/user/src/app/instance'))
 
-    myapp.config.from_mapping(
-        SQLALCHEMY_DATABASE_URI='postgresql+psycopg2://postgres:1234@app-db/postgres',
+    app.config.from_mapping(
+        POSTGRES_HOST=environ.get('POSTGRES_HOST', ''),
+        POSTGRES_USER=environ.get('POSTGRES_USER', ''),
+        POSTGRES_DATABASE=environ.get('POSTGRES_DATABASE', environ.get('POSTGRES_USER', '')),
+        POSTGRES_PASSWORD=environ.get('POSTGRES_PASSWORD', ''),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         BASEURL=environ.get('BASEURL', ''),
         DOCKER_HOST=environ.get('DOCKER_HOST', ''),
@@ -33,49 +36,56 @@ def create_app(test_config=None):
         TOKEN_ISSUER=environ.get('TOKEN_ISSUER', environ.get('BASEURL', 'app-logic')),
         ZOOKEEPER_CONNECTION_STR=environ.get('ZOOKEEPER_CONNECTION_STR', 'zoo1,zoo2,zoo3'),
     )
+
+    # 'postgresql+psycopg2://username:password@host/databse'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://{}:{}@{}/{}'.format(app.config['POSTGRES_USER'],
+                                                                                       app.config['POSTGRES_PASSWORD'],
+                                                                                       app.config['POSTGRES_HOST'],
+                                                                                       app.config['POSTGRES_DATABASE'])
+
     if test_config is None:
         # load the instance config if it exists, when not testing
-        myapp.config.from_pyfile(path.join(myapp.instance_path, 'config.py'), silent=True)
+        app.config.from_pyfile(path.join(app.instance_path, 'config.py'), silent=True)
     else:
-        myapp.config.from_mapping(test_config)
+        app.config.from_mapping(test_config)
     # auth_pubkey_json = requests.get('http://disastergram.nikolaidis.tech/auth/pubkey').json()
     # auth_pubkey = auth_pubkey_json['public_key']
-    # myapp.config['AUTH_PUBLIC_KEY'] = requests.get(auth_address+'/auth/pubkey').json()['public_key']
+    # app.config['AUTH_PUBLIC_KEY'] = requests.get(auth_address+'/auth/pubkey').json()['public_key']
     global auth_pubkey
     auth_pubkey = requests.get(auth_address+'/pubkey').json()['public_key']
 
     if test_config is None:
         # load the instance config if it exists, when not testing
-        myapp.config.from_pyfile(path.join(myapp.instance_path, 'config.py'), silent=True)
+        app.config.from_pyfile(path.join(app.instance_path, 'config.py'), silent=True)
     else:
-        myapp.config.from_mapping(test_config)
+        app.config.from_mapping(test_config)
 
     # Only do zookeeper for non testing configs for now
     znode_data = {
-        'TOKEN_ISSUER': myapp.config['TOKEN_ISSUER'],
-        'BASEURL': myapp.config['BASEURL'],
-        'DOCKER_HOST': myapp.config['DOCKER_HOST'],
-        'DOCKER_BASEURL': myapp.config['DOCKER_BASEURL'],
-        'PUBLIC_KEY': myapp.config['PUBLIC_KEY'].decode('utf-8')
+        'TOKEN_ISSUER': app.config['TOKEN_ISSUER'],
+        'BASEURL': app.config['BASEURL'],
+        'DOCKER_HOST': app.config['DOCKER_HOST'],
+        'DOCKER_BASEURL': app.config['DOCKER_BASEURL'],
+        'PUBLIC_KEY': app.config['PUBLIC_KEY'].decode('utf-8')
     }
 
     global zk
-    zk = AppZoo(KazooClient(myapp.config['ZOOKEEPER_CONNECTION_STR'],
+    zk = AppZoo(KazooClient(app.config['ZOOKEEPER_CONNECTION_STR'],
                              connection_retry=KazooRetry(max_tries=-1),
-                             logger=myapp.logger),
+                             logger=app.logger),
                  znode_data)
 
-    db.init_app(myapp)
-    ma.init_app(myapp)
+    db.init_app(app)
+    ma.init_app(app)
     # for some reason when not in development
     # this call fails /shrug
-    flask_env = myapp.config.get('ENV', '')
+    flask_env = app.config.get('ENV', '')
     if flask_env == 'development':
         from app import models
-        models.init_db(myapp)
+        models.init_db(app)
 
-    from app import app
+    from app import service
 
-    myapp.register_blueprint(app.bp)
+    app.register_blueprint(service.bp)
 
-    return myapp
+    return app

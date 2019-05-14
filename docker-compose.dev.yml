@@ -4,3 +4,7 @@ services:
   app:
     volumes:
       - .:/user/src/app
+
+  app-db:
+    ports:
+      - "6000:5432"
