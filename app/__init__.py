@@ -13,7 +13,7 @@ ma = Marshmallow()
 
 auth_address = 'http://auth:80'
 #auth_address = 'http://disastergram.nikolaidis.tech'
-storage_address = 'http://disastergram.network/storage/1/'
+storage_address = 'http://localhost/storage/1/'
 storage_docker_address = 'http://storage_1:80/'
 # auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
 auth_pubkey = None
@@ -43,7 +43,7 @@ def create_app(test_config=None):
                                                                                        app.config['POSTGRES_HOST'],
                                                                                        app.config['POSTGRES_DATABASE'])
 
-    # TODO: remove
+    # TODO: remove and actually user this config
     app.config['TOKEN_ISSUER'] = 'app-logic'
 
     if test_config is None:
@@ -51,19 +51,7 @@ def create_app(test_config=None):
         app.config.from_pyfile(path.join(app.instance_path, 'config.py'), silent=True)
     else:
         app.config.from_mapping(test_config)
-    # auth_pubkey_json = requests.get('http://disastergram.nikolaidis.tech/auth/pubkey').json()
-    # auth_pubkey = auth_pubkey_json['public_key']
-    # app.config['AUTH_PUBLIC_KEY'] = requests.get(auth_address+'/auth/pubkey').json()['public_key']
-    global auth_pubkey
-    auth_pubkey = requests.get(auth_address+'/pubkey').json()['public_key']
 
-    if test_config is None:
-        # load the instance config if it exists, when not testing
-        app.config.from_pyfile(path.join(app.instance_path, 'config.py'), silent=True)
-    else:
-        app.config.from_mapping(test_config)
-
-    # Only do zookeeper for non testing configs for now
     znode_data = {
         'TOKEN_ISSUER': app.config['TOKEN_ISSUER'],
         'BASEURL': app.config['BASEURL'],
@@ -74,9 +62,20 @@ def create_app(test_config=None):
 
     global zk
     zk = AppZoo(KazooClient(app.config['ZOOKEEPER_CONNECTION_STR'],
-                             connection_retry=KazooRetry(max_tries=-1),
-                             logger=app.logger),
-                 znode_data)
+                            connection_retry=KazooRetry(max_tries=-1),
+                            logger=app.logger),
+                znode_data)
+    zk.wait_for_znode('/auth')
+    auth_info = zk.get_znode_data('/auth')
+    if auth_info is None:
+        raise Exception('Could not retrieve auth info from zookeeper')
+
+    # TODO: remove all this clunky code
+    # auth_pubkey_json = requests.get('http://disastergram.nikolaidis.tech/auth/pubkey').json()
+    # auth_pubkey = auth_pubkey_json['public_key']
+    # app.config['AUTH_PUBLIC_KEY'] = requests.get(auth_address+'/auth/pubkey').json()['public_key']
+    global auth_pubkey
+    auth_pubkey = requests.get(auth_address+'/pubkey').json()['public_key']
 
     db.init_app(app)
     ma.init_app(app)

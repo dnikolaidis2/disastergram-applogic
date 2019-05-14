@@ -1,10 +1,14 @@
 from kazoo.client import KazooState
 from kazoo.exceptions import NodeExistsError, ZookeeperError
+from kazoo.protocol.states import EventType
+from multiprocessing import Condition
 
 import json
 
+
 class AppZoo:
     _znode_path = None
+    _cv = Condition()
 
     def __init__(self, client, znode_data):
         self._client = client
@@ -60,3 +64,27 @@ class AppZoo:
             return self._client.exists("/auth")
         except ZookeeperError:
             return None
+
+    def wait_for_znode(self, path):
+        ret = self._client.exists(path, watch=self.watch_znode_creation)
+        if ret is not None:
+            return
+
+        with self._cv:
+            self._cv.wait()
+
+    def watch_znode_creation(self, event):
+        if event.type == EventType.CREATED:
+            with self._cv:
+                self._cv.notify_all()
+
+    def get_znode_data(self, path):
+        node = None
+        try:
+            node = self._client.get(path)
+        except NoNodeError:
+            return None
+        except ZookeeperError:
+            return None
+
+        return json.loads(node[0])
