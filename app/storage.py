@@ -6,8 +6,9 @@ import requests
 
 class Storage:
 
-    def __init__(self, baseurl, issuer, private_key):
+    def __init__(self, baseurl, docker_baseurl, issuer, private_key):
         self._baseurl = baseurl
+        self._docker_baseurl = docker_baseurl
         self._issuer = issuer
         self._private_key = private_key if not callable(private_key) else private_key()
 
@@ -21,7 +22,7 @@ class Storage:
             'purpose': 'CREATE',
         }, self._private_key, algorithm='RS256')
 
-        return requests.post(urllib.parse.urljoin(self._baseurl, '{}/{}'.format(image_id, token.decode('utf-8'))),
+        return requests.post(urllib.parse.urljoin(self._docker_baseurl, '{}/{}'.format(image_id, token.decode('utf-8'))),
                              files=files)
 
     def delete_image(self, image_id):
@@ -33,14 +34,14 @@ class Storage:
             'purpose': 'DELETE',
         }, self._private_key, algorithm='RS256')
 
-        return requests.delete(urllib.parse.urljoin(self._baseurl, '{}/{}'.format(image_id, token.decode('utf-8'))))
+        return requests.delete(urllib.parse.urljoin(self._docker_baseurl, '{}/{}'.format(image_id, token.decode('utf-8'))))
 
     def gen_image_url(self, image_id):
 
         token = jwt.encode({
             'iss': self._issuer,
             'sub': image_id,
-            'exp': datetime.utcnow() + timedelta(minutes=15),
+            'exp': datetime.utcnow() + timedelta(days=1),
             'purpose': 'READ',
         }, self._private_key, algorithm='RS256')
 

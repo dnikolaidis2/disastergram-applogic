@@ -1,7 +1,7 @@
 from flask import request, jsonify, Response, abort, Blueprint, current_app
 from app.models import User, UserSchema, Gallery, Image, Comment, GalleryComment, random_generator
 from app.storage import Storage
-from app import db, auth_pubkey, auth_address, storage_address
+from app import db, auth_pubkey, auth_address, storage_address, storage_docker_address
 from functools import wraps
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
@@ -21,7 +21,7 @@ def gen_storage():
     if private_key is None:
         abort(500, "Server error occurred while processing request")
 
-    return Storage(storage_address, 'app-logic', private_key)
+    return Storage(storage_address, storage_docker_address,'app-logic', private_key)
 
 
 def allowed_file(filename):
@@ -127,7 +127,7 @@ def generate_user(payload):
 #
 #        token = request.json.get('token')
 
-    #user_data = requests.get(auth_address + '/auth/user/'+str(payload['sub'])+'?token='+str(token)).json()
+    #user_data = requests.get(auth_address + '/user/'+str(payload['sub'])+'?token='+str(token)).json()
     user_data = requests.get(auth_address + '/user/' + str(payload['sub'])).json()
     if User.query.filter(User.auth_id == user_data['id']).count() != 0:
         return
@@ -698,7 +698,7 @@ def post_image_comment(token_payload, image_id):
     if not image_id:
         abort(400, 'Image id field is empty.')
 
-    target_image = Image.query.filter_by(store_id=image_id).first()
+    target_image = Image.query.filter_by(id=image_id).first()
 
     if not target_image:
         abort(404, 'Image not Found.')
@@ -733,7 +733,10 @@ def view_image_comment(token_payload, image_id):
     if not image_id:
         abort(400, 'Image id field is empty.')
 
-    target_image = Image.query.filter_by(store_id=image_id).first()
+    if len(image_id) > Image.id.property.columns[0].type.length:
+        abort(400, 'Payload Too Large.')
+
+    target_image = Image.query.filter_by(id=image_id).first()
 
     if not target_image:
         abort(404, 'Image not Found.')
@@ -741,14 +744,14 @@ def view_image_comment(token_payload, image_id):
     target_user = User.query.filter_by(id=target_image.user_id).first()
 
     if not target_user:
-        abort(404, 'Image owner not found.')
+        abort(404, 'Gallery owner not found.')
 
     if logged_user.id != target_user.id:
 
         if not target_user.is_following(logged_user):
             abort(403, 'Access Forbidden. User is not Following you.')
 
-    image_comments = Comment.query.filter_by(image_id=target_image.id, image_author=target_image)
+    image_comments = Comment.query.filter_by(image_id=image_id, image_author=target_image)
 
     if not image_comments:
         return jsonify({'message': 'No comments found.'}), 204
