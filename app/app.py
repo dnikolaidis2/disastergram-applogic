@@ -698,7 +698,7 @@ def post_image_comment(token_payload, image_id):
     if not image_id:
         abort(400, 'Image id field is empty.')
 
-    target_image = Image.query.filter_by(id=image_id).first()
+    target_image = Image.query.filter_by(store_id=image_id).first()
 
     if not target_image:
         abort(404, 'Image not Found.')
@@ -733,10 +733,7 @@ def view_image_comment(token_payload, image_id):
     if not image_id:
         abort(400, 'Image id field is empty.')
 
-    if len(image_id) > Image.id.property.columns[0].type.length:
-        abort(400, 'Payload Too Large.')
-
-    target_image = Image.query.filter_by(id=image_id).first()
+    target_image = Image.query.filter_by(store_id=image_id).first()
 
     if not target_image:
         abort(404, 'Image not Found.')
@@ -751,7 +748,7 @@ def view_image_comment(token_payload, image_id):
         if not target_user.is_following(logged_user):
             abort(403, 'Access Forbidden. User is not Following you.')
 
-    image_comments = Comment.query.filter_by(image_id=image_id, image_author=target_image)
+    image_comments = Comment.query.filter_by(image_id=target_image.id, image_author=target_image)
 
     if not image_comments:
         return jsonify({'message': 'No comments found.'}), 204
