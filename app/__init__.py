@@ -43,6 +43,9 @@ def create_app(test_config=None):
                                                                                        app.config['POSTGRES_HOST'],
                                                                                        app.config['POSTGRES_DATABASE'])
 
+    # TODO: remove
+    app.config['TOKEN_ISSUER'] = 'app-logic'
+
     if test_config is None:
         # load the instance config if it exists, when not testing
         app.config.from_pyfile(path.join(app.instance_path, 'config.py'), silent=True)
@@ -79,8 +82,7 @@ def create_app(test_config=None):
     ma.init_app(app)
     # for some reason when not in development
     # this call fails /shrug
-    flask_env = app.config.get('ENV', '')
-    if flask_env == 'development':
+    if app.env == 'development':
         from app import models
         models.init_db(app)
 
