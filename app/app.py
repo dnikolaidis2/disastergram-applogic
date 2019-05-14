@@ -757,7 +757,7 @@ def view_image_comment(token_payload, image_id):
 
     for comment in image_comments:
         comment_data = {}
-        comment_data['username'] = User.query.filter_by(id=comment.user_id).first()
+        comment_data['username'] = User.query.filter_by(id=comment.user_id).first().username
         comment_data['comment_id'] = comment.id
         comment_data['body'] = comment.body
         output.append(comment_data)
