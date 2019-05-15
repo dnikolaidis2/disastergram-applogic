@@ -1,7 +1,7 @@
 from flask import request, jsonify, Response, abort, Blueprint, current_app
 from app.models import User, UserSchema, Gallery, Image, Comment, GalleryComment, random_generator
 from app.storage import Storage
-from app import db, auth_pubkey, auth_address, storage_address, storage_docker_address
+from app import db, storage_address, storage_docker_address
 from functools import wraps
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
@@ -35,7 +35,7 @@ def sync_user(username):
     if User.query.filter(User.username == str(username)).count() != 0:
         return True
 
-    user_data = requests.get(auth_address + '/user/' + str(username)).json()
+    user_data = requests.get(current_app.config['AUTH_DOCKER_BASEURL'] + '/user/' + str(username)).json()
 
     if not user_data:
         return False
@@ -86,8 +86,8 @@ def check_token(pub_key):
     try:
         token_payload = jwt.decode(token,
                                    pub_key,
-                                   leeway=timedelta(days=30),    # give 30 second leeway on time checks
-                                   issuer='auth',
+                                   leeway=current_app.config.get('AUTH_LEEWAY', timedelta(seconds=30)), # give 30 second leeway on time checks
+                                   issuer=current_app.config['AUTH_TOKEN_ISSUER'],
                                    algorithms='RS256')
     except jwt.InvalidSignatureError:
         # signature of token does not match
@@ -127,8 +127,8 @@ def generate_user(payload):
 #
 #        token = request.json.get('token')
 
-    #user_data = requests.get(auth_address + '/user/'+str(payload['sub'])+'?token='+str(token)).json()
-    user_data = requests.get(auth_address + '/user/' + str(payload['sub'])).json()
+    #user_data = requests.get(current_app.config['AUTH_DOCKER_BASEURL'] + '/user/'+str(payload['sub'])+'?token='+str(token)).json()
+    user_data = requests.get(current_app.config['AUTH_DOCKER_BASEURL'] + '/user/' + str(payload['sub'])).json()
     if User.query.filter(User.auth_id == user_data['id']).count() != 0:
         return
     dup_user = User(username=user_data['username'], auth_id=user_data['id'])
@@ -138,14 +138,15 @@ def generate_user(payload):
     return jsonify({'message': 'user created'})
 
 
-def require_auth(pub_key="PUBLIC_KEY"):
+def require_auth(pub_key="AUTH_PUBLIC_KEY"):
 
-    pub_key = auth_pubkey
+    if not callable(pub_key):
+        pub_key = lambda: current_app.config.get('AUTH_PUBLIC_KEY')
 
     def decorator(f):
         @wraps(f)
         def wrapped(*args, **kwargs):
-            payload = check_token(pub_key)
+            payload = check_token(pub_key())
             kwargs['token_payload'] = payload
             return f(*args, **kwargs)
 

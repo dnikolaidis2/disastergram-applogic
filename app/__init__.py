@@ -4,20 +4,15 @@ from flask_marshmallow import Marshmallow
 from kazoo.client import KazooClient, KazooRetry
 from app.zookeeper import AppZoo
 from os import environ, path
-import requests
-
-# from kazoo import client as kz_client
+from datetime import timedelta
 
 db = SQLAlchemy()
 ma = Marshmallow()
 
-auth_address = 'http://auth:80'
-#auth_address = 'http://disastergram.nikolaidis.tech'
-storage_address = 'http://disastergram.network/storage/1/'
+storage_address = 'http://localhost/storage/1/'
 storage_docker_address = 'http://storage_1:80/'
-# auth_pubkey = requests.get(auth_address+'/auth/pubkey').json()['public_key']
-auth_pubkey = None
 zk = None
+
 
 def create_app(test_config=None):
     # create the app configuration
@@ -25,6 +20,7 @@ def create_app(test_config=None):
                   instance_path=environ.get('FLASK_APP_INSTANCE', '/user/src/app/instance'))
 
     app.config.from_mapping(
+        AUTH_LEEWAY=timedelta(seconds=int(environ.get('AUTH_LEEWAY', '30'))),  # leeway in seconds
         POSTGRES_HOST=environ.get('POSTGRES_HOST', ''),
         POSTGRES_USER=environ.get('POSTGRES_USER', ''),
         POSTGRES_DATABASE=environ.get('POSTGRES_DATABASE', environ.get('POSTGRES_USER', '')),
@@ -70,12 +66,9 @@ def create_app(test_config=None):
     if auth_info is None:
         raise Exception('Could not retrieve auth info from zookeeper')
 
-    # TODO: remove all this clunky code
-    # auth_pubkey_json = requests.get('http://disastergram.nikolaidis.tech/auth/pubkey').json()
-    # auth_pubkey = auth_pubkey_json['public_key']
-    # app.config['AUTH_PUBLIC_KEY'] = requests.get(auth_address+'/auth/pubkey').json()['public_key']
-    global auth_pubkey
-    auth_pubkey = requests.get(auth_address+'/pubkey').json()['public_key']
+    app.config['AUTH_TOKEN_ISSUER'] = auth_info['TOKEN_ISSUER']
+    app.config['AUTH_PUBLIC_KEY'] = auth_info['PUBLIC_KEY']
+    app.config['AUTH_DOCKER_BASEURL'] = auth_info['DOCKER_BASEURL']
 
     db.init_app(app)
     ma.init_app(app)
