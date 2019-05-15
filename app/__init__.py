@@ -1,12 +1,14 @@
 from flask import Flask, current_app, abort
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from flask_marshmallow import Marshmallow
 from kazoo.client import KazooClient, KazooRetry
 from app.zookeeper import AppZoo
-from os import environ, path
 from datetime import timedelta
+from os import environ, path
 
 db = SQLAlchemy()
+mi = Migrate()
 ma = Marshmallow()
 
 storage_address = 'http://disastergram.network/storage/1/'
@@ -18,6 +20,8 @@ def create_app(test_config=None):
     # create the app configuration
     app = Flask(__name__,
                   instance_path=environ.get('FLASK_APP_INSTANCE', '/user/src/app/instance'))
+
+    # Iitial config stage
 
     app.config.from_mapping(
         AUTH_LEEWAY=timedelta(seconds=int(environ.get('AUTH_LEEWAY', '30'))),  # leeway in seconds
@@ -48,6 +52,28 @@ def create_app(test_config=None):
     else:
         app.config.from_mapping(test_config)
 
+    if app.config.get('POSTGRES_HOST') == '':
+        raise Exception('No postgres database host was provided. '
+                        'POSTGRES_HOST environment variable cannot be omitted')
+
+    if app.config.get('POSTGRES_USER') == '':
+        raise Exception('No postgres database user was provided. '
+                        'POSTGRES_USER environment variable cannot be omitted')
+
+    if app.config.get('POSTGRES_PASSWORD') == '':
+        raise Exception('No postgres database user password was provided. '
+                        'POSTGRES_PASSWORD environment variable cannot be omitted')
+
+    if app.config.get('BASEURL') == '':
+        raise Exception('No service base url was provided. '
+                        'BASEURL environment variable cannot be omitted')
+
+    if app.config.get('DOCKER_HOST') == '':
+        raise Exception('No network host within docker was provided. '
+                        'DOCKER_HOST environment variable cannot be omitted')
+
+    # Zookeeper init, connection and other service config stage 
+
     znode_data = {
         'TOKEN_ISSUER': app.config['TOKEN_ISSUER'],
         'BASEURL': app.config['BASEURL'],
@@ -71,7 +97,10 @@ def create_app(test_config=None):
     app.config['AUTH_DOCKER_BASEURL'] = auth_info['DOCKER_BASEURL']
 
     db.init_app(app)
+    mi.init_app(app, db,
+                directory=environ.get('FLASK_APP_MIGRATIONS', 'migrations'))
     ma.init_app(app)
+
     # for some reason when not in development
     # this call fails /shrug
     if app.env == 'development':
