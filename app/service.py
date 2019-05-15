@@ -13,7 +13,7 @@ import os
 
 
 bp = Blueprint('app', __name__, url_prefix='/api')
-ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'])
+ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
 
 
 def gen_storage():
