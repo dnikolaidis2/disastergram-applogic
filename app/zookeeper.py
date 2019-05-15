@@ -1,5 +1,5 @@
 from kazoo.client import KazooState
-from kazoo.exceptions import NodeExistsError, ZookeeperError
+from kazoo.exceptions import NodeExistsError, ZookeeperError, NoNodeError
 from kazoo.protocol.states import EventType
 from multiprocessing import Condition
 

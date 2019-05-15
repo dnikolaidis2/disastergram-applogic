@@ -6,6 +6,8 @@ from kazoo.client import KazooClient, KazooRetry
 from app.zookeeper import AppZoo
 from datetime import timedelta
 from os import environ, path
+from distutils.util import strtobool
+import requests
 
 db = SQLAlchemy()
 mi = Migrate()
@@ -16,13 +18,31 @@ storage_docker_address = 'http://storage_1:80/'
 zk = None
 
 
+def get_auth_info():
+    if current_app.config['AUTH_CONFIG_FROM_ZOO']:
+        zk.wait_for_znode('/auth')
+        auth_info = zk.get_znode_data('/auth')
+        if auth_info is None:
+            raise Exception('Could not retrieve auth info from zookeeper')
+
+        current_app.config['AUTH_TOKEN_ISSUER'] = auth_info['TOKEN_ISSUER']
+        current_app.config['AUTH_PUBLIC_KEY'] = auth_info['PUBLIC_KEY']
+        current_app.config['AUTH_DOCKER_BASEURL'] = auth_info['DOCKER_BASEURL']
+
+    else:
+        # only for when we are not running the entire project
+        current_app.config['AUTH_TOKEN_ISSUER'] = 'auth'
+        current_app.config['AUTH_PUBLIC_KEY'] = \
+            requests.get('http://disastergram.network/auth/pubkey').json()['public_key']
+        current_app.config['AUTH_DOCKER_BASEURL'] = 'http://disastergram.network/auth/'
+
+
 def create_app(test_config=None):
     # create the app configuration
     app = Flask(__name__,
-                  instance_path=environ.get('FLASK_APP_INSTANCE', '/user/src/app/instance'))
+                instance_path=environ.get('FLASK_APP_INSTANCE', '/user/src/app/instance'))
 
-    # Iitial config stage
-
+    # Itial config stage
     app.config.from_mapping(
         AUTH_LEEWAY=timedelta(seconds=int(environ.get('AUTH_LEEWAY', '30'))),  # leeway in seconds
         POSTGRES_HOST=environ.get('POSTGRES_HOST', ''),
@@ -35,6 +55,7 @@ def create_app(test_config=None):
         DOCKER_BASEURL='http://{}'.format(environ.get('DOCKER_HOST', '')),
         TOKEN_ISSUER=environ.get('TOKEN_ISSUER', environ.get('BASEURL', 'app-logic')),
         ZOOKEEPER_CONNECTION_STR=environ.get('ZOOKEEPER_CONNECTION_STR', 'zoo1,zoo2,zoo3'),
+        AUTH_CONFIG_FROM_ZOO=bool(strtobool(environ.get('AUTH_CONFIG_FROM_ZOO', 'False')))
     )
 
     # 'postgresql+psycopg2://username:password@host/databse'
@@ -72,7 +93,7 @@ def create_app(test_config=None):
         raise Exception('No network host within docker was provided. '
                         'DOCKER_HOST environment variable cannot be omitted')
 
-    # Zookeeper init, connection and other service config stage 
+    # Zookeeper init and connection stage
 
     znode_data = {
         'TOKEN_ISSUER': app.config['TOKEN_ISSUER'],
@@ -87,14 +108,9 @@ def create_app(test_config=None):
                             connection_retry=KazooRetry(max_tries=-1),
                             logger=app.logger),
                 znode_data)
-    zk.wait_for_znode('/auth')
-    auth_info = zk.get_znode_data('/auth')
-    if auth_info is None:
-        raise Exception('Could not retrieve auth info from zookeeper')
 
-    app.config['AUTH_TOKEN_ISSUER'] = auth_info['TOKEN_ISSUER']
-    app.config['AUTH_PUBLIC_KEY'] = auth_info['PUBLIC_KEY']
-    app.config['AUTH_DOCKER_BASEURL'] = auth_info['DOCKER_BASEURL']
+    # Get auth info before first request
+    app.before_first_request(get_auth_info)
 
     db.init_app(app)
     mi.init_app(app, db,

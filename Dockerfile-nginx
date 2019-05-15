@@ -1,0 +1,20 @@
+FROM tiangolo/uwsgi-nginx-flask:python3.6
+
+WORKDIR /app
+
+COPY ./app ./app
+COPY ./instance ./instance
+
+# Move prestart script and python script to run before app to init database
+COPY ./scripts/prestart .
+
+COPY requirements.txt .
+
+COPY uwsgi.ini .
+
+# overide default supervisord.conf
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+RUN pip install --no-cache -r requirements.txt
+
+ENV FLASK_ENV nginx

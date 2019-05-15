@@ -9,3 +9,5 @@ instance/
 
 
 src/__pycache__/
+
+migrate/migrations/
