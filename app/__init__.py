@@ -9,7 +9,7 @@ from datetime import timedelta
 db = SQLAlchemy()
 ma = Marshmallow()
 
-storage_address = 'http://localhost/storage/1/'
+storage_address = 'http://disastergram.network/storage/1/'
 storage_docker_address = 'http://storage_1:80/'
 zk = None
 
