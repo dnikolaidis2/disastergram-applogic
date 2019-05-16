@@ -66,6 +66,8 @@ class GalleryComment(db.Model):
 class Image(db.Model):
     id = db.Column(db.Integer, primary_key=True,  unique=True, index=True)
     store_id = db.Column(db.String(12),  unique=True, nullable=False)
+    storage_1 = db.Column(db.Integer,  unique=False, nullable=False)
+    storage_2 = db.Column(db.Integer,  unique=False, nullable=False)
     gallery_id = db.Column(UUID(as_uuid=True), db.ForeignKey('gallery.id'))
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
     comments = db.relationship('Comment', cascade="all, delete-orphan", backref='image_author', lazy = 'dynamic')

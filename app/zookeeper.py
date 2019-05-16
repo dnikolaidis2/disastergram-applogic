@@ -88,3 +88,4 @@ class AppZoo:
             return None
 
         return json.loads(node[0])
+

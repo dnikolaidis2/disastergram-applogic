@@ -6,11 +6,12 @@ import requests
 
 class Storage:
 
-    def __init__(self, baseurl, docker_baseurl, issuer, private_key):
+    def __init__(self, baseurl, docker_baseurl, issuer, private_key, storage_id):
         self._baseurl = baseurl
         self._docker_baseurl = docker_baseurl
         self._issuer = issuer
         self._private_key = private_key if not callable(private_key) else private_key()
+        self._storage_id = storage_id
 
     def upload_image(self, image_id, filename, file, mime_type):
         files = {'file': (filename, file, mime_type)}
@@ -36,7 +37,7 @@ class Storage:
 
         return requests.delete(urllib.parse.urljoin(self._docker_baseurl, '{}/{}'.format(image_id, token.decode('utf-8'))))
 
-    def gen_image_url(self, image_id):
+    def gen_image_url(self, image_id, storage_id):
 
         token = jwt.encode({
             'iss': self._issuer,
@@ -45,4 +46,8 @@ class Storage:
             'purpose': 'READ',
         }, self._private_key, algorithm='RS256')
 
-        return urllib.parse.urljoin(self._baseurl, '{}/{}'.format(image_id, token.decode('utf-8')))
+        return urllib.parse.urljoin(self._baseurl+storage_id+'/', '{}/{}'.format(image_id, token.decode('utf-8')))
+
+    def get_storage_id(self):
+
+        return self._storage_id

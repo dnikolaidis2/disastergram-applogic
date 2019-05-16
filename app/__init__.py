@@ -13,8 +13,7 @@ db = SQLAlchemy()
 mi = Migrate()
 ma = Marshmallow()
 
-storage_address = 'http://disastergram.network/storage/1/'
-storage_docker_address = 'http://storage_1:80/'
+storage_address = 'http://disastergram.network/storage/'
 zk = None
 
 
@@ -35,6 +34,26 @@ def get_auth_info():
         current_app.config['AUTH_PUBLIC_KEY'] = \
             requests.get('http://disastergram.network/auth/pubkey').json()['public_key']
         current_app.config['AUTH_DOCKER_BASEURL'] = 'http://disastergram.network/auth/'
+
+# TODO: INITIALIZE IN create_app 
+@zk.ChildrenWatch("/storage")
+def get_children_info(children):
+    zk.wait_for_znode('/storage')
+    empty_child_count = 0
+    if children is None:
+        return None
+
+    for child in children:
+        child_info = zk.get_znode_data('/storage/{}'.format(child))
+
+        if child_info is not None:
+            current_app.config['STORAGE_{}_DOCKER_BASEURL'.format(child)] = child_info['DOCKER_BASEURL']
+        else:
+            empty_child_count += 1
+
+    if empty_child_count == len(children):
+        return None
+    return children
 
 
 def create_app(test_config=None):
