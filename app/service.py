@@ -1,10 +1,11 @@
 from flask import request, jsonify, Response, abort, Blueprint, current_app
 from app.models import User, UserSchema, Gallery, Image, Comment, GalleryComment, random_generator
 from app.storage import Storage
-from app import db, storage_address, get_children_info
+from app import db, storage_address
 from functools import wraps
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
+from app.utils import gen_storage
 from sqlalchemy.dialects.postgresql import UUID
 import requests
 import jwt
@@ -15,34 +16,6 @@ import os
 
 bp = Blueprint('app', __name__, url_prefix='/api')
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
-
-
-def gen_storage(storage1_id, storage2_id):
-    # TODO: IF ONLY ONE ACTIVE STORAGE SERVER ??????????
-    storage_ids = []
-    if storage1_id is None and storage2_id is None:
-
-        if get_children_info is None:
-            abort(500, "Server error occurred while processing request")
-
-        storage_ids = random.sample(get_children_info, k=2)
-
-    else:
-        storage_ids[0] = storage1_id
-        storage_ids[1] = storage2_id
-
-    private_key = current_app.config.get('PRIVATE_KEY')
-
-    if private_key is None:
-        abort(500, "Server error occurred while processing request")
-
-    s1 = Storage(storage_address+storage_ids[0]+'/',
-                 current_app.config['STORAGE_{}_DOCKER_BASEURL'.format(storage_ids[0])],
-                 current_app.config['TOKEN_ISSUER'], private_key, storage_ids[0])
-    s2 = Storage(storage_address+storage_ids[1]+'/',
-                 current_app.config['STORAGE_{}_DOCKER_BASEURL'.format(storage_ids[1])],
-                 current_app.config['TOKEN_ISSUER'], private_key, storage_ids[1])
-    return {'storage1': s1, 'storage2': s2}
 
 
 def allowed_file(filename):
@@ -132,23 +105,7 @@ def check_token(pub_key):
 # This function will be used to check incoming users and add them to the applogic database if they don't already exist.
 def generate_user(payload):
     token = ''
-#    if request.method == 'GET':
-        #check if token was sent with request
-#        if request.args == {}:
-#            abort(400, 'Token is not part of request')
 
-        #check if token is not empty
-#        token = request.args.get('token')
-#        if token is None:
-#            abort(400, 'Token field is empty')
-#    else:
-#         check json data
-#        if request.json.get('token') is None:
-#            abort(400, 'Token is not part of request form')
-#
-#        token = request.json.get('token')
-
-    #user_data = requests.get(current_app.config['AUTH_DOCKER_BASEURL'] + '/user/'+str(payload['sub'])+'?token='+str(token)).json()
     user_data = requests.get(current_app.config['AUTH_DOCKER_BASEURL'] + '/user/' + str(payload['sub'])).json()
     if User.query.filter(User.auth_id == user_data['id']).count() != 0:
         return
@@ -175,13 +132,7 @@ def require_auth(pub_key="AUTH_PUBLIC_KEY"):
     return decorator
 
 
-# TESTING TESTING TESTING TESTING
-@bp.route('/test', methods=['GET'])
-def test_pubkey():
-
-    return jsonify({'test': 'Created'}), 201
-
-
+# TODO: REMOVE!!!!!!!!
 # Used for Testing Purposes.
 @bp.route('/user', methods=['GET'])
 def get_all_users():
@@ -256,7 +207,7 @@ def get_following(token_payload):
         user_data['id'] = user.id
         user_data['username'] = user.username
         output.append(user_data)
-    return jsonify({'Followed users': output}), 201
+    return jsonify({'Followed users': output}), 200
 
 # List of users that follow the user.
 @bp.route('/user/followers', methods=['GET'])
@@ -282,7 +233,7 @@ def get_followed(token_payload):
         user_data['id'] = user.id
         user_data['username'] = user.username
         output.append(user_data)
-    return jsonify({'Followed users': output}), 201
+    return jsonify({'Followed users': output}), 200
 
 # Unfollow a friend.
 @bp.route('/user/unfollow', methods=['DELETE'])
@@ -336,7 +287,7 @@ def create_gallery(token_payload):
     if not galleryname:
         abort(400, 'Gallery Name field is empty.')
 
-    if Gallery.query.filter_by(galleryname=galleryname, author=logged_user) is None:
+    if Gallery.query.filter_by(galleryname=galleryname, author=logged_user).first():
         return jsonify({'message': 'Gallery name already exists.'}), 200
 
     new_gallery = Gallery(galleryname=galleryname, author=logged_user)
@@ -370,7 +321,7 @@ def list_galleries(token_payload):
         gallery_data['username'] = User.query.filter_by(id=gallery.user_id).first().username
         output.append(gallery_data)
 
-    return jsonify({'Galleries': output}), 201
+    return jsonify({'Galleries': output}), 200
 
 # GET a list of the user's galleries OR user's friends GALLERIES.
 @bp.route('/user/<username>/galleries', methods=['GET'])
@@ -411,7 +362,7 @@ def list_user_galleries(token_payload, username):
         gallery_data['id'] = gallery.id
         output.append(gallery_data)
 
-    return jsonify({'Galleries': output}), 201
+    return jsonify({'Galleries': output}), 200
 
 # Get a gallery based on id.
 @bp.route('/user/gallery/<gallery_id>', methods=['GET'])
@@ -449,7 +400,7 @@ def get_gallery(token_payload, gallery_id):
     gallery_data['user_id'] = target_owner.id
     output.append(gallery_data)
 
-    return jsonify({'Gallery': output}), 201
+    return jsonify({'Gallery': output}), 200
 
 
 # Deletes gallery from the user.
@@ -475,7 +426,7 @@ def delete_gallery(token_payload, gallery_id):
 
     if requested_images:
         for image in requested_images:
-            response = gen_storage().delete_image(image.id)
+            response = gen_storage(image.storage_1, image.storage_2).delete_image(image.id)
             if not response.status_code == 200:
                 abort(500, "Server error occurred while processing request")
         db.session.delete(requested_images)
@@ -571,7 +522,33 @@ def view_gallery_comment(token_payload, gallery_id):
         comment_data['body'] = comment.body
         output.append(comment_data)
 
-    return jsonify({'comments': output}), 201
+    return jsonify({'comments': output}), 200
+
+
+# Deletes gallery comments from the user.
+@bp.route('/user/gallery/comment/<comment_id>', methods=['DELETE'])
+@require_auth()
+def delete_gallery_comments(token_payload, comment_id):
+
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
+
+    if not comment_id:
+        abort(400, 'comment_id field is empty.')
+
+    requested_comment = GalleryComment.query.filter_by(id=comment_id, g_comment_author=logged_user).first()
+
+    if not requested_comment:
+        abort(404, 'Comment not Found.')
+
+    db.session.delete(requested_comment)
+    db.session.commit()
+
+    return jsonify({'message': 'Gallery Deleted.'}), 200
+
 
 # Upload an Image.
 @bp.route('/user/gallery/<gallery_id>/upload', methods=['POST'])
@@ -667,11 +644,10 @@ def view_gallery(token_payload, gallery_id):
         storage_server = gen_storage(image.storage_1, image.storage_2)
         image_data = {}
         image_data['image_id'] = image.store_id
-        image_data['storage1_image_url'] = storage_server['storage1'].gen_image_url(image.store_id, image.storage_1)
-        image_data['storage2_image_url'] = storage_server['storage2'].gen_image_url(image.store_id, image.storage_2)
+        image_data['image_url'] = storage_server['storage1'].gen_image_url(image.store_id, image.storage_1)
         output.append(image_data)
 
-    return jsonify({'gallery_images': output}), 201
+    return jsonify({'gallery_images': output}), 200
 
 # Delete an Image.
 @bp.route('/user/image/<image_id>', methods=['DELETE'])
@@ -794,7 +770,31 @@ def view_image_comment(token_payload, image_id):
         comment_data['body'] = comment.body
         output.append(comment_data)
 
-    return jsonify({'comments': output}), 201
+    return jsonify({'comments': output}), 200
+
+# Deletes gallery comments from the user.
+@bp.route('/user/image/comment/<comment_id>', methods=['DELETE'])
+@require_auth()
+def delete_image_comments(token_payload, comment_id):
+
+    generate_user(token_payload)
+    logged_user = User.query.filter_by(auth_id=token_payload['sub']).first()
+
+    if logged_user is None:
+        abort(403, 'Logged in user does not exist.')
+
+    if not comment_id:
+        abort(400, 'comment_id field is empty.')
+
+    requested_comment = Comment.query.filter_by(id=comment_id, comment_author=logged_user).first()
+
+    if not requested_comment:
+        abort(404, 'Comment not Found.')
+
+    db.session.delete(requested_comment)
+    db.session.commit()
+
+    return jsonify({'message': 'Gallery Deleted.'}), 200
 
 
 @bp.route('/pubkey')

@@ -1,3 +1,4 @@
+from flask import current_app
 from kazoo.client import KazooState
 from kazoo.exceptions import NodeExistsError, ZookeeperError, NoNodeError
 from kazoo.protocol.states import EventType
@@ -89,3 +90,22 @@ class AppZoo:
 
         return json.loads(node[0])
 
+    def get_children_info(self):
+        @self._client.ChildrenWatch("/storage")
+        def children_info(children):
+            self._client.wait_for_znode('/storage')
+            empty_child_count = 0
+            if children is None:
+                return None
+
+            for child in children:
+                child_info = self._client.get_znode_data('/storage/{}'.format(child))
+
+                if child_info is not None:
+                    current_app.config['STORAGE_{}_DOCKER_BASEURL'.format(child)] = child_info['DOCKER_BASEURL']
+                else:
+                    empty_child_count += 1
+
+            if empty_child_count == len(children):
+                return None
+            return children
