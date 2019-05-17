@@ -63,9 +63,6 @@ def create_app(test_config=None):
                                                                                        app.config['POSTGRES_HOST'],
                                                                                        app.config['POSTGRES_DATABASE'])
 
-    # TODO: remove and actually user this config
-    app.config['TOKEN_ISSUER'] = 'app-logic'
-
     if test_config is None:
         # load the instance config if it exists, when not testing
         app.config.from_pyfile(path.join(app.instance_path, 'config.py'), silent=True)
