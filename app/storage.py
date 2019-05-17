@@ -46,7 +46,7 @@ class Storage:
             'purpose': 'READ',
         }, self._private_key, algorithm='RS256')
 
-        return urllib.parse.urljoin(self._baseurl+storage_id+'/', '{}/{}'.format(image_id, token.decode('utf-8')))
+        return urllib.parse.urljoin(self._baseurl, '{}/{}'.format(image_id, token.decode('utf-8')))
 
     def get_storage_id(self):
 

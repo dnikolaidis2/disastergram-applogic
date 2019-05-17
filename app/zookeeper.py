@@ -1,6 +1,7 @@
 from flask import current_app
 from kazoo.client import KazooState
 from kazoo.exceptions import NodeExistsError, ZookeeperError, NoNodeError
+from kazoo.recipe.watchers import ChildrenWatch
 from kazoo.protocol.states import EventType
 from multiprocessing import Condition
 
@@ -18,6 +19,12 @@ class AppZoo:
         self._client.start()
         self._client.add_listener(self.zoo_listener)
         self.create_znodes()
+
+        # ChildrenWatch(self._client,
+        #               "/storage",
+        #               func=self.children_info,
+        #               allow_session_lost=True,
+        #               send_event=True)
 
     def zoo_listener(self, state):
         if state == KazooState.LOST:
@@ -91,21 +98,24 @@ class AppZoo:
         return json.loads(node[0])
 
     def get_children_info(self):
-        @self._client.ChildrenWatch("/storage")
-        def children_info(children):
-            self._client.wait_for_znode('/storage')
-            empty_child_count = 0
-            if children is None:
-                return None
+        children = None
+        try:
+            children = self._client.get_children('/storage')
+        except NoNodeError:
+            return None
+        except ZookeeperError:
+            self._client.logger.warning('Error occurred while retrieving storage services')
 
-            for child in children:
-                child_info = self._client.get_znode_data('/storage/{}'.format(child))
+        empty_child_count = 0
 
-                if child_info is not None:
-                    current_app.config['STORAGE_{}_DOCKER_BASEURL'.format(child)] = child_info['DOCKER_BASEURL']
-                else:
-                    empty_child_count += 1
+        for child in children:
+            child_info = self.get_znode_data('/storage/{}'.format(child))
 
-            if empty_child_count == len(children):
-                return None
-            return children
+            if child_info is not None:
+                current_app.config['STORAGE_{}_DOCKER_BASEURL'.format(child)] = child_info['DOCKER_BASEURL']
+            else:
+                empty_child_count += 1
+
+        if empty_child_count == len(children):
+            return None
+        return children
