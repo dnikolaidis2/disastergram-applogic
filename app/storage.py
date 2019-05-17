@@ -88,7 +88,7 @@ class StorageManager:
     def get_image_url(self, image_id, image_locations):
         service = sample(set(image_locations), k=1)
         while service == -1:
-            service = sample(set(image_locations))
+            service = sample(set(image_locations), k=1)
 
         return self._storage_dict.get(str(service[0])).gen_image_url(image_id)
 
