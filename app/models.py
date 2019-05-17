@@ -1,10 +1,10 @@
 from app import db
 from app import ma
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import update
 import uuid
 import string
 import random
+
 
 def random_generator():
     return ''.join([random.choice(string.ascii_letters + string.digits) for n in range(12)])
@@ -17,12 +17,14 @@ def user_uuid():
 
     return uid
 
+
 def gallery_uuid():
     uid = uuid.uuid4()
     while Gallery.query.get(uid) is not None:
         uid = uuid.uuid4()
 
     return uid
+
 
 def gallery_comment_uuid():
     uid = uuid.uuid4()
@@ -31,12 +33,15 @@ def gallery_comment_uuid():
 
     return uid
 
+
 def comment_uuid():
     uid = uuid.uuid4()
     while Comment.query.get(uid) is not None:
         uid = uuid.uuid4()
 
     return uid
+
+
 followers = db.Table('followers',
     db.Column('follower_id', UUID(as_uuid=True), db.ForeignKey('user.id')),
     db.Column('followed_id', UUID(as_uuid=True), db.ForeignKey('user.id'))
@@ -72,8 +77,8 @@ class Image(db.Model):
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
     comments = db.relationship('Comment', cascade="all, delete-orphan", backref='image_author', lazy = 'dynamic')
 
-    #def update_url(self, url):
-        #self.imageurl = url
+    def get_locations(self):
+        return [self.storage_1, self.storage_2]
 
     def __repr__(self):
         return '<Image %r>' % self.id
@@ -85,7 +90,6 @@ class Gallery(db.Model):
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('user.id'))
     images = db.relationship('Image', backref='author', lazy='dynamic')
     comments = db.relationship('GalleryComment', cascade="all, delete-orphan", backref='gallery_author', lazy='dynamic')
-
 
     def __repr__(self):
         return '<Gallery %r>' % self.galleryname

@@ -12,19 +12,20 @@ class AppZoo:
     _znode_path = None
     _cv = Condition()
 
-    def __init__(self, client, znode_data):
+    def __init__(self, client, znode_data, storage_manager):
         self._client = client
         self._znode_data = znode_data
 
         self._client.start()
         self._client.add_listener(self.zoo_listener)
         self.create_znodes()
+        self._storage_manager = storage_manager
 
-        # ChildrenWatch(self._client,
-        #               "/storage",
-        #               func=self.children_info,
-        #               allow_session_lost=True,
-        #               send_event=True)
+        ChildrenWatch(self._client,
+                      "/storage",
+                      func=self.storage_children_watcher,
+                      allow_session_lost=True,
+                      send_event=False)
 
     def zoo_listener(self, state):
         if state == KazooState.LOST:
@@ -97,25 +98,12 @@ class AppZoo:
 
         return json.loads(node[0])
 
-    def get_children_info(self):
-        children = None
-        try:
-            children = self._client.get_children('/storage')
-        except NoNodeError:
-            return None
-        except ZookeeperError:
-            self._client.logger.warning('Error occurred while retrieving storage services')
-
-        empty_child_count = 0
-
-        for child in children:
+    def storage_children_watcher(self, children):
+        storage_services = self._storage_manager.get_storage_services()
+        for child in list(set(children) - set(storage_services)):
             child_info = self.get_znode_data('/storage/{}'.format(child))
-
             if child_info is not None:
-                current_app.config['STORAGE_{}_DOCKER_BASEURL'.format(child)] = child_info['DOCKER_BASEURL']
-            else:
-                empty_child_count += 1
+                self._storage_manager.register_storage_service(child, child_info)
 
-        if empty_child_count == len(children):
-            return None
-        return children
+        for child in list(set(storage_services) - set(children)):
+            self._storage_manager.unregister_storage_service(child)

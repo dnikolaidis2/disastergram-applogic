@@ -1,4 +1,4 @@
-from flask import Flask, current_app, abort
+from flask import Flask, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_marshmallow import Marshmallow
@@ -7,14 +7,14 @@ from app.zookeeper import AppZoo
 from datetime import timedelta
 from os import environ, path
 from distutils.util import strtobool
+from app.storage import StorageManager
 import requests
 
 db = SQLAlchemy()
 mi = Migrate()
 ma = Marshmallow()
-
-storage_address = 'http://disastergram.network/storage/'
 zk = None
+sm = None
 
 
 def get_auth_info():
@@ -34,26 +34,6 @@ def get_auth_info():
         current_app.config['AUTH_PUBLIC_KEY'] = \
             requests.get('http://disastergram.network/auth/pubkey').json()['public_key']
         current_app.config['AUTH_DOCKER_BASEURL'] = 'http://disastergram.network/auth/'
-
-# # TODO: INITIALIZE IN create_app
-# @zk.ChildrenWatch("/storage")
-# def get_children_info(children):
-#     zk.wait_for_znode('/storage')
-#     empty_child_count = 0
-#     if children is None:
-#         return None
-#
-#     for child in children:
-#         child_info = zk.get_znode_data('/storage/{}'.format(child))
-#
-#         if child_info is not None:
-#             current_app.config['STORAGE_{}_DOCKER_BASEURL'.format(child)] = child_info['DOCKER_BASEURL']
-#         else:
-#             empty_child_count += 1
-#
-#     if empty_child_count == len(children):
-#         return None
-#     return children
 
 
 def create_app(test_config=None):
@@ -112,6 +92,9 @@ def create_app(test_config=None):
         raise Exception('No network host within docker was provided. '
                         'DOCKER_HOST environment variable cannot be omitted')
 
+    global sm
+    sm = StorageManager(app.logger, app.config['TOKEN_ISSUER'], app.config['PRIVATE_KEY'].decode('utf-8'))
+
     # Zookeeper init and connection stage
 
     znode_data = {
@@ -126,7 +109,8 @@ def create_app(test_config=None):
     zk = AppZoo(KazooClient(app.config['ZOOKEEPER_CONNECTION_STR'],
                             connection_retry=KazooRetry(max_tries=-1),
                             logger=app.logger),
-                znode_data)
+                znode_data,
+                sm)
 
     # Get auth info before first request
     app.before_first_request(get_auth_info)

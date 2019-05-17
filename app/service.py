@@ -1,18 +1,10 @@
-from flask import request, jsonify, Response, abort, Blueprint, current_app
+from flask import request, jsonify, abort, Blueprint, current_app
 from app.models import User, UserSchema, Gallery, Image, Comment, GalleryComment, random_generator
-from app.storage import Storage
-from app import db, storage_address
+from app import db, sm
 from functools import wraps
-from datetime import datetime, timedelta
-from werkzeug.utils import secure_filename
-from app.utils import gen_storage
-from sqlalchemy.dialects.postgresql import UUID
+from datetime import timedelta
 import requests
 import jwt
-import random
-import uuid
-import os
-
 
 bp = Blueprint('app', __name__, url_prefix='/api')
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
@@ -426,8 +418,7 @@ def delete_gallery(token_payload, gallery_id):
 
     if requested_images:
         for image in requested_images:
-            response = gen_storage(image.storage_1, image.storage_2).delete_image(image.id)
-            if not response.status_code == 200:
+            if not sm.delete_image(image.store_id, image.get_locations()):
                 abort(500, "Server error occurred while processing request")
         db.session.delete(requested_images)
         db.session.commit()
@@ -582,21 +573,16 @@ def upload_image(token_payload, gallery_id):
     if not allowed_file(file.filename):
         abort(400, 'File type not allowed.')
 
-    filename = secure_filename(file.filename)
-    file_extension = filename.rsplit('.', 1)[-1].lower()
     image_id = random_generator()
 
-    storage_server = gen_storage(None, None)
+    locations = sm.upload_image(image_id, file)
 
-    response_store1 = storage_server['storage1'].upload_image(image_id,'{}.{}'.format(image_id, file_extension), file, file.mimetype)
-    response_store2 = storage_server['storage2'].upload_image(image_id, '{}.{}'.format(image_id, file_extension), file, file.mimetype)
-
-    if not (response_store1.status_code == 201 and response_store2.status_code == 201):
+    if locations is None:
         abort(500, "Server error occurred while processing request")
 
     # Adds Image in the Database.
-    image = Image(store_id=image_id, storage_1=storage_server['storage1'].get_storage_id(),
-                  storage_2=storage_server['storage2'].get_storage_id(), author=target_gallery, image_author=logged_user)
+    image = Image(store_id=image_id, storage_1=locations[0],
+                  storage_2=locations[1], author=target_gallery, image_author=logged_user)
     db.session.add(image)
     db.session.commit()
 
@@ -633,18 +619,15 @@ def view_gallery(token_payload, gallery_id):
 
     gallery_images = Image.query.filter_by(gallery_id=target_gallery.id).all()
 
-
-
     if not gallery_images:
         return jsonify({'message': 'No images in gallery.'}), 204
 
     output = []
 
     for image in gallery_images:
-        storage_server = gen_storage(image.storage_1, image.storage_2)
         image_data = {}
         image_data['image_id'] = image.store_id
-        image_data['image_url'] = storage_server['storage1'].gen_image_url(image.store_id, image.storage_1)
+        image_data['image_url'] = sm.get_image_url(image.store_id, image.get_locations())
         output.append(image_data)
 
     return jsonify({'gallery_images': output}), 200
@@ -673,12 +656,8 @@ def delete_image(token_payload, image_id):
 
     if target_image.user_id != logged_user.id:  # Only Image owner has permission to delete.
         abort(403, 'Permission Denied.')
-    storage_server = gen_storage(target_image.storage_1, target_image.storage_2)
-
-    response_store1 = storage_server['storage1'].delete_image(target_image.store_id)
-    response_store2 = storage_server['storage2'].delete_image(target_image.store_id)
-
-    if not (response_store1.status_code == 200 and response_store2.status_code == 200 ):
+    
+    if not sm.delete_image(target_image.store_id, target_image.get_locations()):
         abort(500, "Server error occurred while processing request")
 
     db.session.delete(target_image)
