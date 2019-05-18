@@ -63,7 +63,6 @@ def get_following(token_payload):
     users = logged_user.followed.all()
 
     if not users:
-
         return jsonify({'message': 'No friends found.'}), 204
 
     output = []
@@ -297,10 +296,8 @@ def delete_gallery(token_payload, gallery_id):
 
     if requested_images:  # If the gallery has images, delete every image before deleting the gallery.
         for image in requested_images:
-            if not sm.delete_image(image.store_id, image.get_locations()):
-                abort(500, "Server error occurred while processing request")
-        db.session.delete(requested_images)
-        db.session.commit()
+            sm.delete_image(image.store_id, image.get_locations())
+            db.session.delete(image)
 
     db.session.delete(requested_gallery)  # All the orphans of the gallery get deleted as well (comments)
     db.session.commit()
@@ -334,7 +331,7 @@ def post_gallery_comment(token_payload, gallery_id):
 
     target_user = User.query.filter_by(id=target_gallery.user_id).first()
 
-    if not target_user :
+    if not target_user:
         abort(404, 'Gallery owner not found.')
 
     if logged_user.id != target_user.id:
