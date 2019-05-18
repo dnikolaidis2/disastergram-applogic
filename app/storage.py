@@ -59,13 +59,14 @@ class StorageManager:
 
     def upload_image(self, image_id, file):
         file_extension = file.filename.rsplit('.', 1)[-1].lower()
+        file_content = file.read()
 
         services = sample(self._storage_dict.keys(), k=2)
 
         for service in services:
             if self._storage_dict[service].upload_image(image_id,
                                                         '{}.{}'.format(image_id, file_extension),
-                                                        file,
+                                                        file_content,
                                                         file.mimetype).status_code != 201:
                 return None
 
