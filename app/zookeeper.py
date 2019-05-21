@@ -96,14 +96,19 @@ class AppZoo:
         except ZookeeperError:
             return None
 
-        return json.loads(node[0])
+        try:
+            return json.loads(node[0])
+        except json.JSONDecodeError:
+            return None
 
     def storage_children_watcher(self, children):
-        storage_services = self._storage_manager.get_storage_services()
+        storage_services = self._storage_manager.get_available_storage_services()
+        # Caclculate new storage services and iterate over them
         for child in list(set(children) - set(storage_services)):
             child_info = self.get_znode_data('/storage/{}'.format(child))
             if child_info is not None:
                 self._storage_manager.register_storage_service(child, child_info)
 
+        # Caclculate unavailable storage services and iterate over them
         for child in list(set(storage_services) - set(children)):
             self._storage_manager.unregister_storage_service(child)
