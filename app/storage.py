@@ -250,7 +250,7 @@ class StorageManager:
             no_replication = True
             # Get the other image_location
             service = image_locations[abs(image_locations.index(service[0]) - 1)]
-        else
+        else:
             service = service[0]
 
         storage = self._storage_dict.get(str(service))
@@ -258,14 +258,14 @@ class StorageManager:
             # could not get first storage service
             if no_replication:
                 return None
-            else
+            else:
                 # get other storage service
                 storage = self._storage_dict.\
                     get(str(abs(image_locations.index(service) - 1)))
                 if storage is None:
                     return None
         
-        return service.gen_image_url(image_id)
+        return storage.gen_image_url(image_id)
 
     def register_storage_service(self, storage_id, storage_info):
         """Register a storage service with the storage manager object
