@@ -32,8 +32,8 @@ def get_auth_info():
         # only for when we are not running the entire project
         current_app.config['AUTH_TOKEN_ISSUER'] = 'auth'
         current_app.config['AUTH_PUBLIC_KEY'] = \
-            requests.get('http://disastergram.network/auth/pubkey').json()['public_key']
-        current_app.config['AUTH_DOCKER_BASEURL'] = 'http://disastergram.network/auth/'
+            requests.get('https://disastergram.network/auth/pubkey').json()['public_key']
+        current_app.config['AUTH_DOCKER_BASEURL'] = 'https://disastergram.network/auth/'
 
 
 def create_app(test_config=None):
